@@ -149,6 +149,15 @@ export function executeAlarmTool(toolName, args) {
   }
 }
 
+export async function formulateAIReminderMessage(referenceText) {
+  const prompt = `Formula un recordatorio o aviso muy breve, amigable y natural para Sara basado en este tema o idea: "${referenceText}". No repitas las instrucciones literalmente, habla de forma humana y cercana.`;
+  try {
+    const res = await processGeminiRequest(prompt);
+    if (res && res.length > 5) return res;
+  } catch (e) {}
+  return `Hola Sara, es hora de recordar: ${referenceText}.`;
+}
+
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();

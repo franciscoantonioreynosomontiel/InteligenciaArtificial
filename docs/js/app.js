@@ -1,6 +1,6 @@
 // Main App Controller
 import { Scene3D } from './three-scene.js';
-import { processGeminiRequest } from './gemini.js';
+import { processGeminiRequest, formulateAIReminderMessage } from './gemini.js';
 import { uploadToCloudinary } from './cloudinary.js';
 
 let scene3D = null;
@@ -39,8 +39,15 @@ function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
 
   if (modelViewer) {
-    // Open chat drawer when clicking on the model viewer character
+    // Open chat drawer when clicking on the model viewer character OR stop alarm if touch interaction enabled
     modelViewer.addEventListener('click', () => {
+      if (currentTriggeredAlarm) {
+        const actions = currentTriggeredAlarm.stopActions || ['button'];
+        if (actions.includes('touch')) {
+          stopActiveAlarm();
+          return;
+        }
+      }
       const chatDrawer = document.getElementById('chat-drawer');
       if (chatDrawer) {
         chatDrawer.classList.add('open');
@@ -480,6 +487,16 @@ function showAttachmentPreview(base64Src) {
 
 async function handleUserInput(text) {
   if (!text && !currentAttachment) return;
+
+  // Check if active alarm can be stopped by phrase/speaking
+  if (currentTriggeredAlarm) {
+    const actions = currentTriggeredAlarm.stopActions || ['button'];
+    if (actions.includes('phrase')) {
+      stopActiveAlarm();
+      appendChatMessage(`[Alarma detenida por voz] ${text}`, 'user');
+      return;
+    }
+  }
 
   // Add message to chat list UI
   appendChatMessage(text, 'user', currentAttachment ? currentAttachment.base64 : null);
