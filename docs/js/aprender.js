@@ -44,15 +44,22 @@ function setupFileInputDisplay() {
 }
 
 function setupAlgorithmUI() {
-  // Segmented Rule Type Buttons (Alarma vs Recordatorio)
-  const segmentBtns = document.querySelectorAll('.segment-btn');
-  segmentBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      segmentBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentRuleType = btn.getAttribute('data-type') || 'alarma';
-    });
-  });
+  const typeSelect = document.getElementById('rule-type-select');
+  const alarmOnlyFields = document.getElementById('alarm-only-fields');
+
+  if (typeSelect && alarmOnlyFields) {
+    const updateVisibility = () => {
+      currentRuleType = typeSelect.value || 'recordatorio';
+      if (currentRuleType === 'alarma') {
+        alarmOnlyFields.style.display = 'flex';
+      } else {
+        alarmOnlyFields.style.display = 'none';
+      }
+    };
+
+    typeSelect.addEventListener('change', updateVisibility);
+    updateVisibility();
+  }
 
   // Segmented Schedule Buttons (Días vs Fecha)
   const segmentScheduleBtns = document.querySelectorAll('.segment-schedule');
@@ -89,15 +96,6 @@ function setupAlgorithmUI() {
   if (useRangeCheckbox && rangeContainer) {
     useRangeCheckbox.addEventListener('change', () => {
       rangeContainer.style.display = useRangeCheckbox.checked ? 'flex' : 'none';
-    });
-  }
-
-  // Repeat Checkbox Toggle
-  const repeatCheckbox = document.getElementById('rule-repeat-toggle');
-  const repeatContainer = document.getElementById('rule-repeat-container');
-  if (repeatCheckbox && repeatContainer) {
-    repeatCheckbox.addEventListener('change', () => {
-      repeatContainer.style.display = repeatCheckbox.checked ? 'flex' : 'none';
     });
   }
 
@@ -287,23 +285,16 @@ async function handleAddAlgorithm() {
   const msgInput = document.getElementById('rule-message');
   const dateInput = document.getElementById('rule-date');
   const timeInput = document.getElementById('rule-time');
-  const tzSelect = document.getElementById('rule-timezone');
   const useRangeCB = document.getElementById('rule-use-range');
   const rangeStart = document.getElementById('rule-range-start');
   const rangeEnd = document.getElementById('rule-range-end');
-  const rangeLimit = document.getElementById('rule-range-limit');
-  const voiceSelect = document.getElementById('rule-voice');
   const volumeRange = document.getElementById('rule-volume');
-  const repeatCB = document.getElementById('rule-repeat-toggle');
-  const repeatInterval = document.getElementById('rule-repeat-interval');
-  const maxRepeats = document.getElementById('rule-max-repeats');
-  const interactionSelect = document.getElementById('rule-interaction');
 
   const name = nameInput.value.trim();
   const message = msgInput.value.trim();
 
   if (!name) {
-    alert('Por favor especifica un nombre para la regla / alarma.');
+    alert('Por favor especifica un título para la regla / recordatorio.');
     return;
   }
 
@@ -312,6 +303,14 @@ async function handleAddAlgorithm() {
   if (currentScheduleMode === 'days') {
     document.querySelectorAll('.day-chip.active').forEach((chip) => {
       activeDays.push(parseInt(chip.getAttribute('data-day')));
+    });
+  }
+
+  // Get stop actions for Alarma
+  const stopActions = [];
+  if (currentRuleType === 'alarma') {
+    document.querySelectorAll('.stop-action-cb:checked').forEach((cb) => {
+      stopActions.push(cb.value);
     });
   }
 
@@ -325,23 +324,16 @@ async function handleAddAlgorithm() {
     scheduleMode: currentScheduleMode, // 'days' or 'date'
     days: activeDays,
     date: currentScheduleMode === 'date' ? dateInput.value : null,
-    time: timeInput.value || '07:00',
-    timezone: tzSelect.value || 'local',
+    time: timeInput.value || '08:00',
     useRange: useRangeCB.checked,
     rangeStart: useRangeCB.checked ? rangeStart.value : null,
     rangeEnd: useRangeCB.checked ? rangeEnd.value : null,
-    rangeLimit: useRangeCB.checked ? parseInt(rangeLimit.value) || 1 : 1,
-    voice: voiceSelect.value || 'default',
-    sound: uploadedSoundData ? uploadedSoundData.name : 'Predeterminado',
-    soundUrl: uploadedSoundData ? uploadedSoundData.dataUrl : null,
-    volume: parseInt(volumeRange.value) / 100,
-    repeat: repeatCB.checked,
-    repeatInterval: repeatCB.checked ? parseInt(repeatInterval.value) || 5 : 0,
-    maxRepeats: repeatCB.checked ? parseInt(maxRepeats.value) || 3 : 1,
-    interaction: interactionSelect.value || 'button',
+    sound: currentRuleType === 'alarma' ? (uploadedSoundData ? uploadedSoundData.name : 'Predeterminado') : null,
+    soundUrl: currentRuleType === 'alarma' ? (uploadedSoundData ? uploadedSoundData.dataUrl : null) : null,
+    volume: currentRuleType === 'alarma' ? parseInt(volumeRange.value) / 100 : 0.8,
+    stopActions: currentRuleType === 'alarma' ? stopActions : ['button'],
     active: true,
     lastExecuted: null,
-    executionCountInRange: 0,
     createdAt: new Date().toISOString()
   };
 
