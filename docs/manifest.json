@@ -1,6 +1,6 @@
 {
-  "name": "Agente IA PWA",
-  "short_name": "Agente IA",
+  "name": "Asistente PWA",
+  "short_name": "Asistente",
   "description": "Asistente Virtual interactivo 3D con IA Gemini",
   "start_url": "./index.html",
   "display": "standalone",

@@ -18,8 +18,8 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize 3D Canvas Scene
-  scene3D = new Scene3D('canvas-container');
+  // 1. Setup 3D Model Viewer & Three.js Fallback
+  setup3DViewer();
 
   // 2. Setup Speech Recognition
   setupSpeechRecognition();
@@ -27,6 +27,30 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Setup UI Event Listeners
   setupEventListeners();
 });
+
+function setup3DViewer() {
+  const modelViewer = document.getElementById('bot-model-viewer');
+
+  if (modelViewer) {
+    // Prevent default jump/tap animations on click, open chat drawer instead
+    modelViewer.addEventListener('click', (e) => {
+      // Open chat drawer when clicking on the model viewer character
+      const chatDrawer = document.getElementById('chat-drawer');
+      if (chatDrawer) {
+        chatDrawer.classList.add('open');
+      }
+    });
+
+    // Handle error loading GLTF (if file is placeholder or corrupt) -> fallback to Three.js procedurally generated character
+    modelViewer.addEventListener('error', () => {
+      console.warn('model-viewer failed to load GLTF, launching fallback 3D scene.');
+      modelViewer.style.display = 'none';
+      scene3D = new Scene3D('canvas-container');
+    });
+  } else {
+    scene3D = new Scene3D('canvas-container');
+  }
+}
 
 function setupSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
