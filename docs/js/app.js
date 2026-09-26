@@ -17,6 +17,10 @@ if ('serviceWorker' in navigator) {
     .catch((err) => console.warn('ServiceWorker registration failed:', err));
 }
 
+const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
+let activeAlarmAudio = null;
+let currentTriggeredAlarm = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Setup 3D Model Viewer & Three.js Fallback
   setup3DViewer();
@@ -26,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3. Setup UI Event Listeners
   setupEventListeners();
+
+  // 4. Start Real-time Alarm Execution Engine
+  initAlarmExecutionEngine();
 });
 
 function setup3DViewer() {
@@ -226,6 +233,239 @@ function setupEventListeners() {
       const previewElem = document.getElementById('attached-preview');
       if (previewElem) previewElem.style.display = 'none';
     });
+  }
+
+  // Active Alarm Modal Listeners
+  const btnStopAlarm = document.getElementById('btn-stop-alarm');
+  const btnSnoozeAlarm = document.getElementById('btn-snooze-alarm');
+
+  if (btnStopAlarm) {
+    btnStopAlarm.addEventListener('click', () => stopActiveAlarm());
+  }
+
+  if (btnSnoozeAlarm) {
+    btnSnoozeAlarm.addEventListener('click', () => snoozeActiveAlarm(5));
+  }
+
+  // Request Notification permission for background alarms
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+// ==========================================================================
+// Real-Time Alarm & Reminder Engine
+// ==========================================================================
+
+function initAlarmExecutionEngine() {
+  // Check every 10 seconds
+  setInterval(checkAndExecuteAlarms, 10000);
+  checkAndExecuteAlarms();
+}
+
+function checkAndExecuteAlarms() {
+  const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
+  if (!raw) return;
+
+  let rules = [];
+  try {
+    rules = JSON.parse(raw);
+  } catch (e) {
+    return;
+  }
+
+  if (!Array.isArray(rules) || rules.length === 0) return;
+
+  const now = new Date();
+  const currentDay = now.getDay(); // 0 = Dom, 1 = Lun, ...
+  const currentDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const currentHour = String(now.getHours()).padStart(2, '0');
+  const currentMin = String(now.getMinutes()).padStart(2, '0');
+  const currentTimeStr = `${currentHour}:${currentMin}`;
+
+  rules.forEach((rule) => {
+    if (!rule.active) return;
+
+    // Check if snooze is pending
+    if (rule.snoozeUntil) {
+      if (now.getTime() >= rule.snoozeUntil) {
+        rule.snoozeUntil = null;
+        triggerAlarmEvent(rule);
+        return;
+      }
+    }
+
+    // Check last execution to prevent re-triggering in the same minute
+    if (rule.lastExecuted) {
+      const lastExecDate = new Date(rule.lastExecuted);
+      const diffSecs = (now.getTime() - lastExecDate.getTime()) / 1000;
+      if (diffSecs < 60) return; // Wait at least 1 minute
+    }
+
+    // Check schedule mode
+    let dayMatches = false;
+    if (rule.scheduleMode === 'days') {
+      const days = rule.days || [];
+      dayMatches = days.length === 0 || days.includes(currentDay);
+    } else if (rule.scheduleMode === 'date') {
+      dayMatches = rule.date === currentDateStr;
+    }
+
+    if (!dayMatches) return;
+
+    // Check exact time or time range
+    let timeMatches = false;
+
+    if (rule.useRange && rule.rangeStart && rule.rangeEnd) {
+      if (currentTimeStr >= rule.rangeStart && currentTimeStr <= rule.rangeEnd) {
+        const limit = rule.rangeLimit || 1;
+        const executionsToday = rule.executionCountInRange || 0;
+        if (executionsToday < limit) {
+          timeMatches = true;
+        }
+      }
+    } else {
+      timeMatches = currentTimeStr === rule.time;
+    }
+
+    if (timeMatches) {
+      triggerAlarmEvent(rule);
+    }
+  });
+}
+
+function triggerAlarmEvent(rule) {
+  currentTriggeredAlarm = rule;
+
+  // 1. Play sound
+  playAlarmAudio(rule);
+
+  // 2. Speak message
+  updateThoughtBubble(rule.message || rule.name);
+  if (speechEnabled && rule.message) {
+    speakResponse(rule.message);
+  }
+
+  // 3. Update execution timestamp
+  const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
+  if (raw) {
+    let rules = JSON.parse(raw);
+    const idx = rules.findIndex((r) => r.id === rule.id);
+    if (idx !== -1) {
+      rules[idx].lastExecuted = new Date().toISOString();
+      rules[idx].executionCountInRange = (rules[idx].executionCountInRange || 0) + 1;
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(rules));
+    }
+  }
+
+  // 4. Show modal UI
+  const alarmModal = document.getElementById('alarm-modal');
+  const alarmType = document.getElementById('alarm-alert-type');
+  const alarmName = document.getElementById('alarm-alert-name');
+  const alarmTime = document.getElementById('alarm-alert-time');
+  const alarmMsg = document.getElementById('alarm-alert-msg');
+
+  if (alarmModal) {
+    if (alarmType) alarmType.textContent = rule.type === 'alarma' ? 'Alarma Activa' : 'Recordatorio Activo';
+    if (alarmName) alarmName.textContent = rule.name || rule.title;
+    if (alarmTime) alarmTime.textContent = rule.time || '';
+    if (alarmMsg) alarmMsg.textContent = `"${rule.message || rule.name}"`;
+
+    alarmModal.classList.add('active');
+  }
+
+  // 5. Trigger Web Notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(rule.type === 'alarma' ? 'Alarma!' : 'Recordatorio!', {
+        body: rule.message || rule.name,
+        icon: './assets/img/icon-192.png'
+      });
+    } catch (e) {}
+  }
+}
+
+function playAlarmAudio(rule) {
+  stopAlarmAudio();
+
+  if (rule.soundUrl) {
+    activeAlarmAudio = new Audio(rule.soundUrl);
+    activeAlarmAudio.loop = true;
+    activeAlarmAudio.volume = rule.volume || 0.8;
+    activeAlarmAudio.play().catch((err) => {
+      console.warn('Could not play audio sound file, falling back to Web Audio tone:', err);
+      playSynthesizedBeep();
+    });
+  } else {
+    playSynthesizedBeep();
+  }
+}
+
+function playSynthesizedBeep() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 1.2);
+  } catch (e) {}
+}
+
+function stopAlarmAudio() {
+  if (activeAlarmAudio) {
+    activeAlarmAudio.pause();
+    activeAlarmAudio.currentTime = 0;
+    activeAlarmAudio = null;
+  }
+}
+
+function stopActiveAlarm() {
+  stopAlarmAudio();
+  synth.cancel();
+
+  const alarmModal = document.getElementById('alarm-modal');
+  if (alarmModal) {
+    alarmModal.classList.remove('active');
+  }
+
+  if (currentTriggeredAlarm) {
+    showToast(`Alarma "${currentTriggeredAlarm.name}" detenida.`);
+    currentTriggeredAlarm = null;
+  }
+}
+
+function snoozeActiveAlarm(minutes = 5) {
+  stopAlarmAudio();
+  synth.cancel();
+
+  const alarmModal = document.getElementById('alarm-modal');
+  if (alarmModal) {
+    alarmModal.classList.remove('active');
+  }
+
+  if (currentTriggeredAlarm) {
+    const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
+    if (raw) {
+      let rules = JSON.parse(raw);
+      const idx = rules.findIndex((r) => r.id === currentTriggeredAlarm.id);
+      if (idx !== -1) {
+        rules[idx].snoozeUntil = Date.now() + minutes * 60 * 1000;
+        localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(rules));
+      }
+    }
+
+    showToast(`Alarma pospuesta por ${minutes} minutos.`);
+    currentTriggeredAlarm = null;
   }
 }
 
