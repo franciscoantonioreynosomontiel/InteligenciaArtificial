@@ -6,20 +6,26 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const KNOWLEDGE_STORAGE_KEY = 'ia_agent_knowledge';
+const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 
 let currentFilter = 'all';
 let currentSearchQuery = '';
+let currentRuleType = 'alarma';
+let currentScheduleMode = 'days';
+let uploadedSoundData = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupFilters();
   setupFileInputDisplay();
+  setupAlgorithmUI();
   renderKnowledgeList();
 
   // Handlers for Column 1 Uploads
   document.getElementById('btn-add-faq')?.addEventListener('click', handleAddFaq);
   document.getElementById('btn-add-sheet')?.addEventListener('click', handleAddSheet);
   document.getElementById('btn-upload-file')?.addEventListener('click', handleUploadFile);
+  document.getElementById('btn-add-algorithm')?.addEventListener('click', handleAddAlgorithm);
 });
 
 function setupFileInputDisplay() {
@@ -32,6 +38,89 @@ function setupFileInputDisplay() {
         nameDisplay.textContent = fileInput.files[0].name;
       } else {
         nameDisplay.textContent = 'Sin archivos seleccionados';
+      }
+    });
+  }
+}
+
+function setupAlgorithmUI() {
+  // Segmented Rule Type Buttons (Alarma vs Recordatorio)
+  const segmentBtns = document.querySelectorAll('.segment-btn');
+  segmentBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      segmentBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentRuleType = btn.getAttribute('data-type') || 'alarma';
+    });
+  });
+
+  // Segmented Schedule Buttons (Días vs Fecha)
+  const segmentScheduleBtns = document.querySelectorAll('.segment-schedule');
+  const daysContainer = document.getElementById('rule-days-container');
+  const dateContainer = document.getElementById('rule-date-container');
+
+  segmentScheduleBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      segmentScheduleBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentScheduleMode = btn.getAttribute('data-mode') || 'days';
+
+      if (currentScheduleMode === 'days') {
+        if (daysContainer) daysContainer.style.display = 'flex';
+        if (dateContainer) dateContainer.style.display = 'none';
+      } else {
+        if (daysContainer) daysContainer.style.display = 'none';
+        if (dateContainer) dateContainer.style.display = 'flex';
+      }
+    });
+  });
+
+  // Day Chips Toggle
+  const dayChips = document.querySelectorAll('.day-chip');
+  dayChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+    });
+  });
+
+  // Time Range Checkbox Toggle
+  const useRangeCheckbox = document.getElementById('rule-use-range');
+  const rangeContainer = document.getElementById('rule-range-container');
+  if (useRangeCheckbox && rangeContainer) {
+    useRangeCheckbox.addEventListener('change', () => {
+      rangeContainer.style.display = useRangeCheckbox.checked ? 'flex' : 'none';
+    });
+  }
+
+  // Repeat Checkbox Toggle
+  const repeatCheckbox = document.getElementById('rule-repeat-toggle');
+  const repeatContainer = document.getElementById('rule-repeat-container');
+  if (repeatCheckbox && repeatContainer) {
+    repeatCheckbox.addEventListener('change', () => {
+      repeatContainer.style.display = repeatCheckbox.checked ? 'flex' : 'none';
+    });
+  }
+
+  // Sound File Loader
+  const soundInput = document.getElementById('rule-sound-input');
+  const soundNameDisplay = document.getElementById('rule-sound-name');
+  if (soundInput && soundNameDisplay) {
+    soundInput.addEventListener('change', () => {
+      if (soundInput.files && soundInput.files.length > 0) {
+        const soundFile = soundInput.files[0];
+        soundNameDisplay.textContent = soundFile.name;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          uploadedSoundData = {
+            name: soundFile.name,
+            dataUrl: e.target.result
+          };
+        };
+        reader.readAsDataURL(soundFile);
+      } else {
+        uploadedSoundData = null;
+        soundNameDisplay.textContent = 'Sonido predeterminado';
       }
     });
   }
@@ -72,6 +161,16 @@ function setupFilters() {
 function getLocalKnowledge() {
   const data = localStorage.getItem(KNOWLEDGE_STORAGE_KEY);
   return data ? JSON.parse(data) : [];
+}
+
+function getLocalAlarms() {
+  const data = localStorage.getItem(ALARMS_STORAGE_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveLocalAlarms(items) {
+  localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
+  renderKnowledgeList();
 }
 
 function saveLocalKnowledge(items) {
@@ -183,6 +282,118 @@ async function handleUploadFile() {
   reader.readAsText(file);
 }
 
+async function handleAddAlgorithm() {
+  const nameInput = document.getElementById('rule-name');
+  const msgInput = document.getElementById('rule-message');
+  const dateInput = document.getElementById('rule-date');
+  const timeInput = document.getElementById('rule-time');
+  const tzSelect = document.getElementById('rule-timezone');
+  const useRangeCB = document.getElementById('rule-use-range');
+  const rangeStart = document.getElementById('rule-range-start');
+  const rangeEnd = document.getElementById('rule-range-end');
+  const rangeLimit = document.getElementById('rule-range-limit');
+  const voiceSelect = document.getElementById('rule-voice');
+  const volumeRange = document.getElementById('rule-volume');
+  const repeatCB = document.getElementById('rule-repeat-toggle');
+  const repeatInterval = document.getElementById('rule-repeat-interval');
+  const maxRepeats = document.getElementById('rule-max-repeats');
+  const interactionSelect = document.getElementById('rule-interaction');
+
+  const name = nameInput.value.trim();
+  const message = msgInput.value.trim();
+
+  if (!name) {
+    alert('Por favor especifica un nombre para la regla / alarma.');
+    return;
+  }
+
+  // Get active days if in days mode
+  const activeDays = [];
+  if (currentScheduleMode === 'days') {
+    document.querySelectorAll('.day-chip.active').forEach((chip) => {
+      activeDays.push(parseInt(chip.getAttribute('data-day')));
+    });
+  }
+
+  const newRule = {
+    id: 'alg_' + Date.now(),
+    type: currentRuleType, // 'alarma' or 'recordatorio'
+    category: 'algorithm',
+    title: name,
+    name: name,
+    message: message || name,
+    scheduleMode: currentScheduleMode, // 'days' or 'date'
+    days: activeDays,
+    date: currentScheduleMode === 'date' ? dateInput.value : null,
+    time: timeInput.value || '07:00',
+    timezone: tzSelect.value || 'local',
+    useRange: useRangeCB.checked,
+    rangeStart: useRangeCB.checked ? rangeStart.value : null,
+    rangeEnd: useRangeCB.checked ? rangeEnd.value : null,
+    rangeLimit: useRangeCB.checked ? parseInt(rangeLimit.value) || 1 : 1,
+    voice: voiceSelect.value || 'default',
+    sound: uploadedSoundData ? uploadedSoundData.name : 'Predeterminado',
+    soundUrl: uploadedSoundData ? uploadedSoundData.dataUrl : null,
+    volume: parseInt(volumeRange.value) / 100,
+    repeat: repeatCB.checked,
+    repeatInterval: repeatCB.checked ? parseInt(repeatInterval.value) || 5 : 0,
+    maxRepeats: repeatCB.checked ? parseInt(maxRepeats.value) || 3 : 1,
+    interaction: interactionSelect.value || 'button',
+    active: true,
+    lastExecuted: null,
+    executionCountInRange: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  saveAlgorithmItem(newRule);
+
+  // Clear inputs
+  nameInput.value = '';
+  msgInput.value = '';
+  uploadedSoundData = null;
+  const soundNameDisplay = document.getElementById('rule-sound-name');
+  if (soundNameDisplay) soundNameDisplay.textContent = 'Sonido predeterminado';
+
+  showToast(`${currentRuleType === 'alarma' ? 'Alarma' : 'Recordatorio'} guardado con exito`);
+}
+
+function saveAlgorithmItem(newRule) {
+  const rules = getLocalAlarms();
+  rules.push(newRule);
+  saveLocalAlarms(rules);
+
+  // Sync Supabase
+  try {
+    supabase.from('alarms_reminders').insert([{
+      type: newRule.type,
+      name: newRule.name,
+      message: newRule.message,
+      schedule_mode: newRule.scheduleMode,
+      days: newRule.days,
+      specific_date: newRule.date,
+      time: newRule.time,
+      timezone: newRule.timezone,
+      use_range: newRule.useRange,
+      range_start: newRule.rangeStart,
+      range_end: newRule.rangeEnd,
+      range_limit: newRule.rangeLimit,
+      voice: newRule.voice,
+      sound: newRule.sound,
+      sound_url: newRule.soundUrl,
+      volume: newRule.volume,
+      repeat: newRule.repeat,
+      repeat_interval: newRule.repeatInterval,
+      max_repeats: newRule.maxRepeats,
+      interaction: newRule.interaction,
+      active: newRule.active
+    }]).then(({ error }) => {
+      if (error) console.log('Supabase alarms sync info:', error.message);
+    });
+  } catch (e) {
+    console.log('Supabase alarms sync error:', e);
+  }
+}
+
 function saveItem(newItem) {
   const items = getLocalKnowledge();
   items.push(newItem);
@@ -207,50 +418,150 @@ function renderKnowledgeList() {
   const container = document.getElementById('knowledge-list');
   if (!container) return;
 
-  let items = getLocalKnowledge();
+  let knowledgeItems = getLocalKnowledge().map((i) => ({ ...i, category: 'knowledge' }));
+  let alarmItems = getLocalAlarms().map((a) => ({ ...a, category: 'algorithm' }));
 
-  // Filter by type chip
-  if (currentFilter !== 'all') {
-    items = items.filter((item) => item.type === currentFilter);
+  let combined = [];
+
+  if (currentFilter === 'all') {
+    combined = [...knowledgeItems, ...alarmItems];
+  } else if (currentFilter === 'algorithm') {
+    combined = alarmItems;
+  } else {
+    combined = knowledgeItems.filter((i) => i.type === currentFilter);
   }
 
   // Filter by search text
   if (currentSearchQuery) {
-    items = items.filter(
+    combined = combined.filter(
       (item) =>
-        item.title.toLowerCase().includes(currentSearchQuery) ||
-        item.content.toLowerCase().includes(currentSearchQuery)
+        (item.title && item.title.toLowerCase().includes(currentSearchQuery)) ||
+        (item.name && item.name.toLowerCase().includes(currentSearchQuery)) ||
+        (item.content && item.content.toLowerCase().includes(currentSearchQuery)) ||
+        (item.message && item.message.toLowerCase().includes(currentSearchQuery))
     );
   }
 
-  if (items.length === 0) {
+  if (combined.length === 0) {
     container.innerHTML = `<p style="color: #94a3b8; font-size: 0.9rem; text-align: center; padding: 20px;">No se encontraron registros para el filtro actual.</p>`;
     return;
   }
 
   container.innerHTML = '';
 
-  items.forEach((item) => {
+  combined.forEach((item) => {
     const div = document.createElement('div');
     div.className = 'knowledge-item';
 
-    div.innerHTML = `
-      <div class="knowledge-item-header">
-        <div class="knowledge-item-title">${escapeHtml(item.title)}</div>
-        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">${item.type.toUpperCase()}</span>
-      </div>
-      <div class="knowledge-item-desc">${escapeHtml(item.content.substring(0, 140))}${item.content.length > 140 ? '...' : ''}</div>
-      <div class="item-actions">
-        <button class="btn-edit" data-id="${item.id}">Editar</button>
-        <button class="btn-delete" data-id="${item.id}">Eliminar</button>
-      </div>
-    `;
+    if (item.category === 'algorithm') {
+      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      let scheduleText = '';
+      if (item.scheduleMode === 'days') {
+        const daysStr = (item.days || []).map((d) => dayNames[d]).join(', ') || 'Todos los días';
+        scheduleText = `${daysStr} a las ${item.time}`;
+      } else {
+        scheduleText = `Fecha: ${item.date || 'Pendiente'} a las ${item.time}`;
+      }
 
-    div.querySelector('.btn-delete').addEventListener('click', () => deleteItem(item.id));
-    div.querySelector('.btn-edit').addEventListener('click', () => editItem(item));
+      if (item.useRange) {
+        scheduleText += ` (Rango: ${item.rangeStart} - ${item.rangeEnd}, Max: ${item.rangeLimit})`;
+      }
+
+      const badgeClass = item.type === 'alarma' ? 'badge-alarma' : 'badge-recordatorio';
+
+      div.innerHTML = `
+        <div class="knowledge-item-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="algorithm-card-badge ${badgeClass}">${escapeHtml(item.type)}</span>
+            <div class="knowledge-item-title">${escapeHtml(item.name || item.title)}</div>
+          </div>
+          <label class="switch-toggle" title="Activar/Desactivar">
+            <input type="checkbox" class="toggle-rule-active" data-id="${item.id}" ${item.active ? 'checked' : ''}>
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <div class="knowledge-item-desc">
+          <strong>Horario:</strong> ${escapeHtml(scheduleText)}<br>
+          <strong>Mensaje:</strong> "${escapeHtml(item.message)}"
+        </div>
+        <div class="item-actions">
+          ${item.soundUrl ? `<button class="btn-edit btn-play-sound" data-id="${item.id}">Escuchar Sonido</button>` : ''}
+          <button class="btn-edit" data-id="${item.id}">Editar</button>
+          <button class="btn-delete" data-id="${item.id}">Eliminar</button>
+        </div>
+      `;
+
+      div.querySelector('.toggle-rule-active').addEventListener('change', (e) => toggleRuleActive(item.id, e.target.checked));
+      div.querySelector('.btn-delete').addEventListener('click', () => deleteAlgorithmItem(item.id));
+      div.querySelector('.btn-edit').addEventListener('click', () => editAlgorithmItem(item));
+      if (item.soundUrl) {
+        div.querySelector('.btn-play-sound')?.addEventListener('click', () => {
+          const audio = new Audio(item.soundUrl);
+          audio.volume = item.volume || 0.8;
+          audio.play().catch((e) => console.warn('Could not play preview sound:', e));
+        });
+      }
+
+    } else {
+      // Standard Knowledge item
+      div.innerHTML = `
+        <div class="knowledge-item-header">
+          <div class="knowledge-item-title">${escapeHtml(item.title)}</div>
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">${item.type.toUpperCase()}</span>
+        </div>
+        <div class="knowledge-item-desc">${escapeHtml((item.content || '').substring(0, 140))}${(item.content || '').length > 140 ? '...' : ''}</div>
+        <div class="item-actions">
+          <button class="btn-edit" data-id="${item.id}">Editar</button>
+          <button class="btn-delete" data-id="${item.id}">Eliminar</button>
+        </div>
+      `;
+
+      div.querySelector('.btn-delete').addEventListener('click', () => deleteItem(item.id));
+      div.querySelector('.btn-edit').addEventListener('click', () => editItem(item));
+    }
 
     container.appendChild(div);
   });
+}
+
+function toggleRuleActive(id, isActive) {
+  let rules = getLocalAlarms();
+  const index = rules.findIndex((r) => r.id === id);
+  if (index !== -1) {
+    rules[index].active = isActive;
+    saveLocalAlarms(rules);
+    showToast(isActive ? 'Regla activada' : 'Regla desactivada');
+  }
+}
+
+function deleteAlgorithmItem(id) {
+  if (!confirm('Esta seguro de eliminar este algoritmo/regla?')) return;
+  let rules = getLocalAlarms();
+  rules = rules.filter((r) => r.id !== id);
+  saveLocalAlarms(rules);
+  showToast('Regla eliminada');
+}
+
+function editAlgorithmItem(rule) {
+  const newName = prompt('Editar nombre de la regla:', rule.name || rule.title);
+  if (newName === null) return;
+
+  const newMsg = prompt('Editar mensaje hablado:', rule.message);
+  if (newMsg === null) return;
+
+  const newTime = prompt('Editar hora de ejecucion (HH:MM):', rule.time);
+  if (newTime === null) return;
+
+  let rules = getLocalAlarms();
+  const index = rules.findIndex((r) => r.id === rule.id);
+  if (index !== -1) {
+    rules[index].name = newName.trim() || rule.name;
+    rules[index].title = newName.trim() || rule.title;
+    rules[index].message = newMsg.trim() || rule.message;
+    rules[index].time = newTime.trim() || rule.time;
+    saveLocalAlarms(rules);
+    showToast('Regla actualizada');
+  }
 }
 
 function deleteItem(id) {

@@ -873,3 +873,263 @@ body {
   from { opacity: 0; transform: translate(-50%, 20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ==========================================================================
+   Algorithm (Alarms & Reminders) Additional UI Elements
+   ========================================================================== */
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.segmented-control {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  gap: 4px;
+}
+
+.segment-btn, .segment-schedule {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.segment-btn.active, .segment-schedule.active {
+  background: #ffffff;
+  color: var(--primary-purple);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.day-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.day-chip {
+  flex: 1;
+  min-width: 36px;
+  padding: 8px 0;
+  text-align: center;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.day-chip.active {
+  background: var(--primary-purple);
+  color: #ffffff;
+  border-color: var(--primary-purple);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-purple);
+  cursor: pointer;
+}
+
+.form-range {
+  width: 100%;
+  accent-color: var(--primary-purple);
+  cursor: pointer;
+}
+
+/* Alarm Card Badge & Controls */
+.algorithm-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-alarma {
+  background: #fce7f3;
+  color: var(--accent-pink);
+}
+
+.badge-recordatorio {
+  background: #e0f2fe;
+  color: var(--accent-blue);
+}
+
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #cbd5e1;
+  transition: .25s;
+  border-radius: 24px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .25s;
+  border-radius: 50%;
+}
+
+input:checked + .switch-slider {
+  background-color: var(--primary-purple);
+}
+
+input:checked + .switch-slider:before {
+  transform: translateX(20px);
+}
+
+/* Real-Time Alarm Active Overlay Modal (Index Page) */
+.alarm-overlay-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.alarm-overlay-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.alarm-alert-card {
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 28px;
+  padding: 32px 28px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  border: 2px solid var(--primary-purple);
+  animation: alarmPulseCard 1.5s infinite ease-in-out;
+}
+
+@keyframes alarmPulseCard {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 20px rgba(147, 51, 234, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
+}
+
+.alarm-alert-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.alarm-alert-msg {
+  font-size: 1.05rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.alarm-alert-time {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--primary-purple);
+}
+
+.alarm-alert-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.btn-stop-alarm {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #f43f5e);
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+  transition: transform 0.2s;
+}
+
+.btn-stop-alarm:hover {
+  transform: scale(1.02);
+}
+
+.btn-snooze-alarm {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.btn-snooze-alarm:hover {
+  background: #f1f5f9;
+}

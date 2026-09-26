@@ -49,6 +49,10 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
             Archivo TXT/CSV
           </button>
+          <button class="tab-btn" data-tab="tab-algorithms">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Algoritmos
+          </button>
         </div>
 
         <!-- Tab 1: Formulario FAQ -->
@@ -114,6 +118,158 @@
           </button>
         </div>
 
+        <!-- Tab 4: Configurar Algoritmos (Alarmas y Recordatorios Inteligentes) -->
+        <div id="tab-algorithms" class="tab-content">
+          <div class="form-group">
+            <label>Tipo de Algoritmo / Regla</label>
+            <div class="segmented-control">
+              <button type="button" class="segment-btn active" data-type="alarma">Alarma</button>
+              <button type="button" class="segment-btn" data-type="recordatorio">Recordatorio</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="rule-name">Nombre de la Alarma / Recordatorio</label>
+            <input type="text" id="rule-name" class="form-input" placeholder="Ej. Despertar temprano / Tomar medicamento">
+          </div>
+
+          <div class="form-group">
+            <label for="rule-message">Mensaje hablado (Voz)</label>
+            <textarea id="rule-message" class="form-textarea" placeholder="Ej. Es hora de despertar y comenzar el dia."></textarea>
+          </div>
+
+          <!-- Schedule Options -->
+          <div class="form-group">
+            <label>Programacion por Días o Fecha</label>
+            <div class="segmented-control">
+              <button type="button" class="segment-schedule active" data-mode="days">Días de la semana</button>
+              <button type="button" class="segment-schedule" data-mode="date">Fecha especifica</button>
+            </div>
+          </div>
+
+          <div id="rule-days-container" class="form-group">
+            <label>Días de ejecucion</label>
+            <div class="day-chips">
+              <button type="button" class="day-chip active" data-day="1">Lun</button>
+              <button type="button" class="day-chip active" data-day="2">Mar</button>
+              <button type="button" class="day-chip active" data-day="3">Mié</button>
+              <button type="button" class="day-chip active" data-day="4">Jue</button>
+              <button type="button" class="day-chip active" data-day="5">Vie</button>
+              <button type="button" class="day-chip" data-day="6">Sáb</button>
+              <button type="button" class="day-chip" data-day="0">Dom</button>
+            </div>
+          </div>
+
+          <div id="rule-date-container" class="form-group" style="display: none;">
+            <label for="rule-date">Fecha de ejecucion</label>
+            <input type="date" id="rule-date" class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="rule-time">Hora de ejecucion</label>
+              <input type="time" id="rule-time" class="form-input" value="07:00">
+            </div>
+            <div class="form-group flex-1">
+              <label for="rule-timezone">Zona Horaria</label>
+              <select id="rule-timezone" class="form-input">
+                <option value="local">Zona local (Dispositivo)</option>
+                <option value="America/Mexico_City">America/Mexico_City</option>
+                <option value="America/Bogota">America/Bogota</option>
+                <option value="America/Argentina/Buenos_Aires">America/Buenos_Aires</option>
+                <option value="America/Santiago">America/Santiago</option>
+                <option value="Europe/Madrid">Europe/Madrid</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Time Range Options -->
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="rule-use-range">
+              <span>Configurar rango horario (Ej. 07:00 a 10:00)</span>
+            </label>
+          </div>
+
+          <div id="rule-range-container" class="form-row" style="display: none;">
+            <div class="form-group flex-1">
+              <label for="rule-range-start">Hora Inicio</label>
+              <input type="time" id="rule-range-start" class="form-input" value="08:00">
+            </div>
+            <div class="form-group flex-1">
+              <label for="rule-range-end">Hora Fin</label>
+              <input type="time" id="rule-range-end" class="form-input" value="10:00">
+            </div>
+            <div class="form-group flex-1">
+              <label for="rule-range-limit">Max ejecuciones en rango</label>
+              <input type="number" id="rule-range-limit" class="form-input" value="1" min="1">
+            </div>
+          </div>
+
+          <!-- Voice & Sound Options -->
+          <div class="form-group">
+            <label for="rule-voice">Voz / Personaje</label>
+            <select id="rule-voice" class="form-input">
+              <option value="default">Voz por defecto del personaje IA</option>
+              <option value="friendly">Personaje Amigable</option>
+              <option value="energetic">Personaje Energico</option>
+              <option value="calm">Personaje Calmo / Suave</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Cargar Sonido de Alarma / Recordatorio (.mp3, .wav)</label>
+            <div class="custom-file-wrapper">
+              <input type="file" id="rule-sound-input" class="file-input-hidden" accept="audio/*">
+              <label for="rule-sound-input" class="custom-file-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                <span>Subir Audio</span>
+              </label>
+              <span id="rule-sound-name" class="file-name-display">Sonido predeterminado</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="rule-volume">Volumen del Sonido (0 - 100%)</label>
+            <input type="range" id="rule-volume" min="0" max="100" value="80" class="form-range">
+          </div>
+
+          <!-- Repetition Options -->
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="rule-repeat-toggle">
+              <span>Repetir alarma hasta interactuar</span>
+            </label>
+          </div>
+
+          <div id="rule-repeat-container" class="form-row" style="display: none;">
+            <div class="form-group flex-1">
+              <label for="rule-repeat-interval">Intervalo (Minutos)</label>
+              <input type="number" id="rule-repeat-interval" class="form-input" value="5" min="1">
+            </div>
+            <div class="form-group flex-1">
+              <label for="rule-max-repeats">Max Repeticiones</label>
+              <input type="number" id="rule-max-repeats" class="form-input" value="3" min="1">
+            </div>
+          </div>
+
+          <!-- Interaction options -->
+          <div class="form-group">
+            <label for="rule-interaction">Accion / Interaccion para detener</label>
+            <select id="rule-interaction" class="form-input">
+              <option value="button">Boton "Detener" en pantalla</option>
+              <option value="phrase">Decir la frase de confirmacion</option>
+              <option value="touch">Tocar al personaje 3D</option>
+              <option value="snooze">Boton "Posponer 5 min"</option>
+            </select>
+          </div>
+
+          <button id="btn-add-algorithm" class="btn-primary-action">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Guardar Algoritmo / Regla
+          </button>
+        </div>
+
       </div>
 
       <!-- Column 2: Filtrar, Editar y Eliminar Data -->
@@ -134,6 +290,7 @@
             <button class="filter-chip" data-filter="faq">FAQs</button>
             <button class="filter-chip" data-filter="sheet">Sheets</button>
             <button class="filter-chip" data-filter="file">Archivos</button>
+            <button class="filter-chip" data-filter="algorithm">Algoritmos</button>
           </div>
         </div>
 
