@@ -15,11 +15,13 @@
 
   <div class="learn-container">
     <div class="learn-header">
-      <h1 style="font-size: 1.4rem; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
-        Base de Conocimiento
-      </h1>
-      <a href="./index.html" class="btn-action" style="background: var(--primary-light); color: var(--primary-purple); text-decoration: none;">
-        Volver
+      <div class="header-title-group">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="header-icon"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <h1>Base de Conocimiento</h1>
+      </div>
+      <a href="./index.html" class="btn-back">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        <span>Volver</span>
       </a>
     </div>
 
@@ -27,27 +29,40 @@
     <div class="learn-grid">
 
       <!-- Column 1: Cargar Data -->
-      <div class="section-card">
-        <h3>Cargar Data</h3>
+      <div class="section-card column-card">
+        <div class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <h3>Cargar Data</h3>
+        </div>
 
         <!-- Tab Navigation for Upload Types -->
         <div class="tab-buttons">
-          <button class="tab-btn active" data-tab="tab-faq">FAQ</button>
-          <button class="tab-btn" data-tab="tab-sheet">Sheet / URL</button>
-          <button class="tab-btn" data-tab="tab-file">Archivo TXT/CSV</button>
+          <button class="tab-btn active" data-tab="tab-faq">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            FAQ
+          </button>
+          <button class="tab-btn" data-tab="tab-sheet">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+            Sheet / URL
+          </button>
+          <button class="tab-btn" data-tab="tab-file">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+            Archivo TXT/CSV
+          </button>
         </div>
 
         <!-- Tab 1: Formulario FAQ -->
         <div id="tab-faq" class="tab-content active">
           <div class="form-group">
             <label for="faq-question">Titulo / Pregunta</label>
-            <input type="text" id="faq-question" class="form-input" placeholder="Ej. Cuales son los horarios de atencion?">
+            <input type="text" id="faq-question" class="form-input" placeholder="Ej. Que servicios ofrece la empresa?">
           </div>
           <div class="form-group">
             <label for="faq-answer">Descripcion / Respuesta</label>
-            <textarea id="faq-answer" class="form-textarea" placeholder="Ej. Atendemos de lunes a viernes de 9am a 6pm."></textarea>
+            <textarea id="faq-answer" class="form-textarea" placeholder="Ej. Ofrecemos diseno 3D, desarrollo web y asistencia con IA."></textarea>
           </div>
-          <button id="btn-add-faq" class="btn-action" style="background: var(--primary-purple); color: white; width: 100%; justify-content: center;">
+          <button id="btn-add-faq" class="btn-primary-action">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Guardar FAQ
           </button>
         </div>
@@ -56,7 +71,7 @@
         <div id="tab-sheet" class="tab-content">
           <div class="form-group">
             <label for="doc-title">Titulo del Documento / Tabla</label>
-            <input type="text" id="doc-title" class="form-input" placeholder="Ej. Precios de productos 2025">
+            <input type="text" id="doc-title" class="form-input" placeholder="Ej. Catalogo de productos 2025">
           </div>
           <div class="form-group">
             <label for="doc-url">URL de Google Sheets (Publicado como CSV) o Enlace</label>
@@ -66,7 +81,8 @@
             <label for="doc-desc">Descripcion adicional</label>
             <textarea id="doc-desc" class="form-textarea" placeholder="Breve descripcion del contenido..."></textarea>
           </div>
-          <button id="btn-add-sheet" class="btn-action" style="background: var(--accent-blue); color: white; width: 100%; justify-content: center;">
+          <button id="btn-add-sheet" class="btn-secondary-action">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
             Vincular Sheet / URL
           </button>
         </div>
@@ -78,14 +94,22 @@
             <input type="text" id="file-title" class="form-input" placeholder="Ej. Manual de usuario">
           </div>
           <div class="form-group">
-            <label for="file-input">Seleccionar archivo (.txt, .csv, .json, .md)</label>
-            <input type="file" id="file-input" class="form-input" accept=".txt,.csv,.json,.md">
+            <label>Seleccionar archivo (.txt, .csv, .json, .md)</label>
+            <div class="custom-file-wrapper">
+              <input type="file" id="file-input" class="file-input-hidden" accept=".txt,.csv,.json,.md">
+              <label for="file-input" class="custom-file-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span>Seleccionar archivo</span>
+              </label>
+              <span id="file-chosen-name" class="file-name-display">Sin archivos seleccionados</span>
+            </div>
           </div>
           <div class="form-group">
             <label for="file-desc">Descripcion</label>
             <textarea id="file-desc" class="form-textarea" placeholder="Detalles sobre el archivo..."></textarea>
           </div>
-          <button id="btn-upload-file" class="btn-action" style="background: var(--accent-pink); color: white; width: 100%; justify-content: center;">
+          <button id="btn-upload-file" class="btn-accent-action">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
             Cargar Archivo
           </button>
         </div>
@@ -93,11 +117,17 @@
       </div>
 
       <!-- Column 2: Filtrar, Editar y Eliminar Data -->
-      <div class="section-card">
-        <h3>Filtrar y Administrar Data</h3>
+      <div class="section-card column-card">
+        <div class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          <h3>Filtrar y Administrar Data</h3>
+        </div>
 
         <div class="filter-bar">
-          <input type="text" id="search-title" class="form-input" placeholder="Buscar por titulo o contenido...">
+          <div class="search-wrapper">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="search-title" class="form-input search-input" placeholder="Buscar por titulo o contenido...">
+          </div>
 
           <div class="filter-buttons">
             <button class="filter-chip active" data-filter="all">Todos</button>

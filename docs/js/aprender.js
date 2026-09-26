@@ -13,6 +13,7 @@ let currentSearchQuery = '';
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupFilters();
+  setupFileInputDisplay();
   renderKnowledgeList();
 
   // Handlers for Column 1 Uploads
@@ -20,6 +21,21 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-add-sheet')?.addEventListener('click', handleAddSheet);
   document.getElementById('btn-upload-file')?.addEventListener('click', handleUploadFile);
 });
+
+function setupFileInputDisplay() {
+  const fileInput = document.getElementById('file-input');
+  const nameDisplay = document.getElementById('file-chosen-name');
+
+  if (fileInput && nameDisplay) {
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        nameDisplay.textContent = fileInput.files[0].name;
+      } else {
+        nameDisplay.textContent = 'Sin archivos seleccionados';
+      }
+    });
+  }
+}
 
 function setupTabs() {
   const tabBtns = document.querySelectorAll('.tab-btn');
