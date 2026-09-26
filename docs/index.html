@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Agente IA 3D - PWA</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- 3D Canvas Background & Character -->
+    <div id="canvas-container"></div>
+
+    <!-- Top Navigation Header Bar -->
+    <header class="top-bar">
+      <div class="brand-title">
+        <span class="brand-icon">✨</span>
+        <span>Agente IA</span>
+      </div>
+
+      <div class="top-actions">
+        <!-- Audio Speech Toggle -->
+        <button id="btn-toggle-speech" class="btn-icon active" title="Activar/Desactivar Voz de la IA">
+          🔊
+        </button>
+
+        <!-- Learn / Knowledge Base Page Button -->
+        <a href="./aprender.html" class="btn-icon" title="Base de Conocimiento y Documentos (Aprender)">
+          📖
+        </a>
+      </div>
+    </header>
+
+    <!-- Floating Thought / Speech Bubble -->
+    <div class="thought-bubble-container">
+      <div id="thought-bubble" class="thought-bubble">
+        <p id="thought-text">¡Hola! Soy tu asistente IA 3D. Puedes hablarme o escribirme en cualquier momento. ✨</p>
+      </div>
+      <div class="thought-tail">
+        <div class="thought-tail-dot dot-1"></div>
+        <div class="thought-tail-dot dot-2"></div>
+      </div>
+    </div>
+
+    <!-- Floating Strategic Action Control Bar -->
+    <div class="bottom-control-bar">
+      <!-- Camera Button -->
+      <button id="btn-camera" class="btn-icon" title="Tomar Foto / Cámara">
+        📷
+      </button>
+
+      <!-- Main Mic / Voice Speak Button -->
+      <button id="btn-mic" class="btn-icon btn-main-mic" title="Mantén presionado o click para hablar">
+        🎙️
+      </button>
+
+      <!-- Toggle Chat Drawer Button -->
+      <button id="btn-chat-toggle" class="btn-icon" title="Abrir Chat de Texto">
+        💬
+      </button>
+    </div>
+
+    <!-- Chat Drawer Side Panel -->
+    <aside id="chat-drawer" class="chat-drawer">
+      <div class="chat-header">
+        <h2><span>💬</span> Conversación</h2>
+        <button id="btn-close-chat" class="btn-icon" style="width: 36px; height: 36px; font-size: 1rem;">
+          ✕
+        </button>
+      </div>
+
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg ai">
+          ¡Hola! ¿En qué puedo ayudarte hoy? Puedes enviarme texto o capturar una foto.
+        </div>
+      </div>
+
+      <!-- Attached Image Preview Container -->
+      <div id="attached-preview" style="display: none; padding: 8px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <img id="attached-img" src="" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">
+          <span style="font-size: 0.85rem; color: #475569;">Imagen adjunta</span>
+        </div>
+        <button id="btn-remove-attachment" style="background: none; border: none; font-size: 1.1rem; cursor: pointer;">✕</button>
+      </div>
+
+      <div class="chat-input-bar">
+        <input type="text" id="chat-input" placeholder="Escribe un mensaje..." autocomplete="off">
+        <button id="btn-send-chat" class="btn-send" title="Enviar">
+          ➔
+        </button>
+      </div>
+    </aside>
+
+    <!-- Camera Modal Dialog -->
+    <div id="camera-modal" class="camera-modal">
+      <div class="camera-box">
+        <h3 style="font-size: 1.1rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
+          📷 Capturar Foto para Análisis
+        </h3>
+        <video id="camera-stream" class="camera-preview" autoplay playsinline></video>
+        <canvas id="camera-canvas" style="display: none;"></canvas>
+        <div class="camera-controls">
+          <button id="btn-snap-photo" class="btn-action btn-snap">
+            📸 Capturar Foto
+          </button>
+          <button id="btn-close-camera" class="btn-action btn-close-cam">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

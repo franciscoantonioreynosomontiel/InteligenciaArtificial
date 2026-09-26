@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base de Conocimiento - Aprender</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="page-learn">
+
+  <div class="learn-container">
+    <div class="learn-header">
+      <h1 style="font-size: 1.5rem; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
+        📖 Base de Conocimiento (Aprender)
+      </h1>
+      <a href="./index.html" class="btn-action" style="background: var(--primary-light); color: var(--primary-purple); text-decoration: none;">
+        ⬅️ Volver al Agente
+      </a>
+    </div>
+
+    <p style="margin-bottom: 24px; color: #475569; font-size: 0.95rem; line-height: 1.5;">
+      Agrega preguntas frecuentes (FAQs), enlaces a Google Sheets público/CSV, y documentos de texto. El Agente IA usará esta información para responder a tus preguntas con precisión.
+    </p>
+
+    <!-- Section 1: Add FAQ -->
+    <div class="section-card">
+      <h3>❓ Agregar FAQ (Pregunta y Respuesta)</h3>
+      <div class="form-group">
+        <label for="faq-question">Pregunta / Título</label>
+        <input type="text" id="faq-question" class="form-input" placeholder="Ej. ¿Cuáles son los horarios de atención?">
+      </div>
+      <div class="form-group">
+        <label for="faq-answer">Respuesta / Detalle</label>
+        <textarea id="faq-answer" class="form-textarea" placeholder="Ej. Atendemos de Lunes a Viernes de 9am a 6pm."></textarea>
+      </div>
+      <button id="btn-add-faq" class="btn-action" style="background: var(--primary-purple); color: white;">
+        ➕ Guardar FAQ
+      </button>
+    </div>
+
+    <!-- Section 2: Add Google Sheets / CSV Link -->
+    <div class="section-card">
+      <h3>📊 Agregar Google Sheets o Documento URL</h3>
+      <div class="form-group">
+        <label for="doc-title">Nombre del Documento / Tabla</label>
+        <input type="text" id="doc-title" class="form-input" placeholder="Ej. Precios de productos 2025">
+      </div>
+      <div class="form-group">
+        <label for="doc-url">URL de Google Sheets (Publicado en la Web como CSV) o Archivo</label>
+        <input type="url" id="doc-url" class="form-input" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
+      </div>
+      <button id="btn-add-doc" class="btn-action" style="background: var(--accent-blue); color: white;">
+        🔗 Vincular Documento
+      </button>
+    </div>
+
+    <!-- Section 3: List of Saved Knowledge -->
+    <div class="section-card">
+      <h3>📚 Conocimientos Registrados</h3>
+      <div id="knowledge-list" class="knowledge-list">
+        <!-- Dynamic Items -->
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="./js/aprender.js"></script>
+</body>
+</html>
