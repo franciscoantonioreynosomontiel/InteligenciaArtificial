@@ -21,6 +21,8 @@ const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 let activeAlarmAudio = null;
 let currentTriggeredAlarm = null;
 
+let thoughtBubbleTimer = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Setup 3D Model Viewer & Three.js Fallback
   setup3DViewer();
@@ -33,7 +35,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4. Start Real-time Alarm Execution Engine
   initAlarmExecutionEngine();
+
+  // 5. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides)
+  showThoughtBubble('Hola Sara, en que te puedo ayudar?', 4000);
 });
+
+function showThoughtBubble(text, autoHideMs = 4000) {
+  const container = document.querySelector('.thought-bubble-container');
+  const thoughtText = document.getElementById('thought-text');
+
+  // If chat drawer is open, do not display thought bubble
+  const chatDrawer = document.getElementById('chat-drawer');
+  if (chatDrawer && chatDrawer.classList.contains('open')) {
+    hideThoughtBubble();
+    return;
+  }
+
+  if (thoughtText) {
+    thoughtText.innerText = text;
+  }
+
+  if (container) {
+    container.classList.remove('hidden');
+  }
+
+  if (thoughtBubbleTimer) {
+    clearTimeout(thoughtBubbleTimer);
+    thoughtBubbleTimer = null;
+  }
+
+  if (autoHideMs > 0) {
+    thoughtBubbleTimer = setTimeout(() => {
+      hideThoughtBubble();
+    }, autoHideMs);
+  }
+}
+
+function hideThoughtBubble() {
+  const container = document.querySelector('.thought-bubble-container');
+  if (container) {
+    container.classList.add('hidden');
+  }
+  if (thoughtBubbleTimer) {
+    clearTimeout(thoughtBubbleTimer);
+    thoughtBubbleTimer = null;
+  }
+}
 
 function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
@@ -81,13 +128,13 @@ function setupSpeechRecognition() {
     isRecording = true;
     const micBtn = document.getElementById('btn-mic');
     if (micBtn) micBtn.classList.add('recording');
-    updateThoughtBubble('Escuchando... Hablame');
+    showThoughtBubble('Escuchando... Hablame', 0);
   };
 
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
     console.log('Voice Input:', transcript);
-    handleUserInput(transcript);
+    handleUserInput(transcript, true);
   };
 
   recognition.onerror = (event) => {
@@ -141,6 +188,9 @@ function setupEventListeners() {
   if (btnChatToggle && chatDrawer) {
     btnChatToggle.addEventListener('click', () => {
       chatDrawer.classList.toggle('open');
+      if (chatDrawer.classList.contains('open')) {
+        hideThoughtBubble();
+      }
     });
   }
 
@@ -159,7 +209,7 @@ function setupEventListeners() {
       const text = chatInput.value.trim();
       if (text || currentAttachment) {
         chatInput.value = '';
-        handleUserInput(text);
+        handleUserInput(text, false);
       }
     };
 
@@ -227,7 +277,7 @@ function setupEventListeners() {
       });
 
       // Notify user
-      updateThoughtBubble('Foto capturada. Escribeme o hablame para preguntarme sobre ella.');
+      showThoughtBubble('Foto capturada. Escribeme o hablame para preguntarme sobre ella.', 4000);
       showToast('Foto cargada para analisis');
     });
   }
@@ -348,7 +398,7 @@ function triggerAlarmEvent(rule) {
   playAlarmAudio(rule);
 
   // 2. Speak message
-  updateThoughtBubble(rule.message || rule.name);
+  showThoughtBubble(rule.message || rule.name, 6000);
   if (speechEnabled && rule.message) {
     speakResponse(rule.message);
   }
@@ -485,7 +535,7 @@ function showAttachmentPreview(base64Src) {
   }
 }
 
-async function handleUserInput(text) {
+async function handleUserInput(text, isVoice = false) {
   if (!text && !currentAttachment) return;
 
   // Check if active alarm can be stopped by phrase/speaking
@@ -506,34 +556,40 @@ async function handleUserInput(text) {
   const previewElem = document.getElementById('attached-preview');
   if (previewElem) previewElem.style.display = 'none';
 
-  // Thought bubble thinking state
-  updateThoughtBubble('Pensando...');
+  const chatDrawer = document.getElementById('chat-drawer');
+  const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+
+  if (isVoice && !isChatOpen) {
+    showThoughtBubble('Pensando...', 0);
+  } else {
+    hideThoughtBubble();
+  }
 
   try {
     const responseText = await processGeminiRequest(text, attachedData);
 
-    // Display response in thought bubble
-    updateThoughtBubble(responseText);
+    if (isVoice && !isChatOpen) {
+      showThoughtBubble(responseText, 5000);
+    } else {
+      hideThoughtBubble();
+    }
 
     // Display response in chat
     appendChatMessage(responseText, 'ai');
 
     // Speak response if voice enabled
     if (speechEnabled && responseText) {
-      speakResponse(responseText);
+      speakResponse(responseText, isVoice && !isChatOpen);
     }
   } catch (err) {
     console.error('Error processing AI response:', err);
     const errorMsg = 'Lo siento, ocurrio un pequeño error. Por favor intenta de nuevo.';
-    updateThoughtBubble(errorMsg);
+    if (isVoice && !isChatOpen) {
+      showThoughtBubble(errorMsg, 4000);
+    } else {
+      hideThoughtBubble();
+    }
     appendChatMessage(errorMsg, 'ai');
-  }
-}
-
-function updateThoughtBubble(text) {
-  const thoughtText = document.getElementById('thought-text');
-  if (thoughtText) {
-    thoughtText.innerText = text;
   }
 }
 
@@ -560,7 +616,7 @@ function appendChatMessage(text, sender, imageBase64 = null) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function speakResponse(text) {
+function speakResponse(text, isVoiceBubble = false) {
   if (!synth) return;
 
   synth.cancel(); // Cancel any ongoing speech
@@ -578,10 +634,16 @@ function speakResponse(text) {
 
   utterance.onend = () => {
     if (scene3D) scene3D.setSpeakingState(false);
+    if (isVoiceBubble) {
+      setTimeout(() => hideThoughtBubble(), 3000);
+    }
   };
 
   utterance.onerror = () => {
     if (scene3D) scene3D.setSpeakingState(false);
+    if (isVoiceBubble) {
+      hideThoughtBubble();
+    }
   };
 
   synth.speak(utterance);
