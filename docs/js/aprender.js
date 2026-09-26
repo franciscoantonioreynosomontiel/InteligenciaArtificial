@@ -90,13 +90,24 @@ function setupAlgorithmUI() {
     });
   });
 
-  // Time Range Checkbox Toggle
+  // Time Range Checkbox Toggle (Hides single time container when range active)
   const useRangeCheckbox = document.getElementById('rule-use-range');
+  const singleTimeContainer = document.getElementById('rule-single-time-container');
   const rangeContainer = document.getElementById('rule-range-container');
-  if (useRangeCheckbox && rangeContainer) {
-    useRangeCheckbox.addEventListener('change', () => {
-      rangeContainer.style.display = useRangeCheckbox.checked ? 'flex' : 'none';
-    });
+
+  if (useRangeCheckbox) {
+    const updateTimeVisibility = () => {
+      if (useRangeCheckbox.checked) {
+        if (singleTimeContainer) singleTimeContainer.style.display = 'none';
+        if (rangeContainer) rangeContainer.style.display = 'flex';
+      } else {
+        if (singleTimeContainer) singleTimeContainer.style.display = 'flex';
+        if (rangeContainer) rangeContainer.style.display = 'none';
+      }
+    };
+
+    useRangeCheckbox.addEventListener('change', updateTimeVisibility);
+    updateTimeVisibility();
   }
 
   // Sound File Loader
