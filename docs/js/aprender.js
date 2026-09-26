@@ -71,7 +71,7 @@ async function handleAddFaq() {
   const answer = answerInput.value.trim();
 
   if (!question || !answer) {
-    alert('Por favor completa el título/pregunta y la descripción.');
+    alert('Por favor completa el titulo/pregunta y la descripcion.');
     return;
   }
 
@@ -86,7 +86,7 @@ async function handleAddFaq() {
   saveItem(newItem);
   questionInput.value = '';
   answerInput.value = '';
-  showToast('FAQ guardada con éxito ✨');
+  showToast('FAQ guardada con exito');
 }
 
 async function handleAddSheet() {
@@ -99,7 +99,7 @@ async function handleAddSheet() {
   const desc = descInput.value.trim();
 
   if (!title || !url) {
-    alert('Por favor indica el título y la URL.');
+    alert('Por favor indica el titulo y la URL.');
     return;
   }
 
@@ -129,7 +129,7 @@ async function handleAddSheet() {
   titleInput.value = '';
   urlInput.value = '';
   descInput.value = '';
-  showToast('Sheet/URL vinculada con éxito 📊');
+  showToast('Sheet/URL vinculada con exito');
 }
 
 async function handleUploadFile() {
@@ -161,7 +161,7 @@ async function handleUploadFile() {
     titleInput.value = '';
     fileInput.value = '';
     descInput.value = '';
-    showToast('Archivo cargado con éxito 📁');
+    showToast('Archivo cargado con exito');
   };
 
   reader.readAsText(file);
@@ -218,19 +218,15 @@ function renderKnowledgeList() {
     const div = document.createElement('div');
     div.className = 'knowledge-item';
 
-    let icon = '❓';
-    if (item.type === 'sheet') icon = '📊';
-    if (item.type === 'file') icon = '📁';
-
     div.innerHTML = `
       <div class="knowledge-item-header">
-        <div class="knowledge-item-title">${icon} ${escapeHtml(item.title)}</div>
+        <div class="knowledge-item-title">${escapeHtml(item.title)}</div>
         <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">${item.type.toUpperCase()}</span>
       </div>
       <div class="knowledge-item-desc">${escapeHtml(item.content.substring(0, 140))}${item.content.length > 140 ? '...' : ''}</div>
       <div class="item-actions">
-        <button class="btn-edit" data-id="${item.id}">✏️ Editar</button>
-        <button class="btn-delete" data-id="${item.id}">🗑️ Eliminar</button>
+        <button class="btn-edit" data-id="${item.id}">Editar</button>
+        <button class="btn-delete" data-id="${item.id}">Eliminar</button>
       </div>
     `;
 
@@ -242,7 +238,7 @@ function renderKnowledgeList() {
 }
 
 function deleteItem(id) {
-  if (!confirm('¿Estás seguro de eliminar este registro?')) return;
+  if (!confirm('Esta seguro de eliminar este registro?')) return;
   let items = getLocalKnowledge();
   items = items.filter((item) => item.id !== id);
   saveLocalKnowledge(items);
@@ -250,10 +246,10 @@ function deleteItem(id) {
 }
 
 function editItem(item) {
-  const newTitle = prompt('Editar título:', item.title);
+  const newTitle = prompt('Editar titulo:', item.title);
   if (newTitle === null) return;
 
-  const newContent = prompt('Editar descripción / contenido:', item.content);
+  const newContent = prompt('Editar descripcion / contenido:', item.content);
   if (newContent === null) return;
 
   let items = getLocalKnowledge();
@@ -262,7 +258,7 @@ function editItem(item) {
     items[index].title = newTitle.trim() || item.title;
     items[index].content = newContent.trim() || item.content;
     saveLocalKnowledge(items);
-    showToast('Registro actualizado ✨');
+    showToast('Registro actualizado');
   }
 }
 

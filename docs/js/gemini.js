@@ -11,7 +11,7 @@ function getStoredKnowledgePrompt() {
     const items = JSON.parse(raw);
     if (!Array.isArray(items) || items.length === 0) return '';
 
-    let knowledgeStr = '\n\nInformación de contexto (Base de conocimiento):\n';
+    let knowledgeStr = '\n\nInformacion de contexto (Base de conocimiento):\n';
     items.forEach((item, index) => {
       knowledgeStr += `${index + 1}. [${item.type.toUpperCase()}] ${item.title}: ${item.content}\n`;
     });
@@ -23,7 +23,7 @@ function getStoredKnowledgePrompt() {
 
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
-  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}`;
+  const fullPrompt = `${userPrompt || 'Que ves en esta imagen?'}${contextKnowledge}`;
 
   // 1. Try calling Supabase Edge Function first
   try {
@@ -62,20 +62,20 @@ function generateClientFallbackResponse(prompt, attachment) {
   const lower = (prompt || '').toLowerCase();
 
   if (attachment) {
-    return `He analizado la imagen que me mostraste. Se ve muy clara. ¿Te gustaría saber algo más específico sobre ella?`;
+    return `He analizado la imagen que me mostraste. Se ve muy clara. Te gustaria saber algo mas especifico sobre ella?`;
   }
 
   if (lower.includes('hola') || lower.includes('buenas')) {
-    return 'Hola Sara, ¿en qué te puedo ayudar? ✨';
+    return 'Hola Sara, en que te puedo ayudar?';
   }
 
-  if (lower.includes('quien eres') || lower.includes('quién eres') || lower.includes('tu nombre')) {
-    return 'Hola Sara, soy tu asistente virtual 3D. ¡Puedes hablarme o pedirme lo que necesites!';
+  if (lower.includes('quien eres') || lower.includes('quien eres') || lower.includes('tu nombre')) {
+    return 'Hola Sara, en que te puedo ayudar?';
   }
 
   if (lower.includes('gracias')) {
-    return '¡De nada! Siempre es un placer ayudarte. 😊';
+    return 'De nada. Siempre es un placer ayudarte.';
   }
 
-  return `Entendido: "${prompt}". Para conectar las respuestas de Gemini en vivo a través de tu Edge Function de Supabase, revisa el archivo INSTRUCCIONES_SUPABASE.txt para configurar la clave GEMINI_API_KEY.`;
+  return `Entendido: "${prompt}". Para conectar las respuestas en vivo a traves de tu Edge Function de Supabase, revisa el archivo INSTRUCCIONES_SUPABASE.txt`;
 }
