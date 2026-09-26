@@ -66,11 +66,11 @@ function generateClientFallbackResponse(prompt, attachment) {
   }
 
   if (lower.includes('hola') || lower.includes('buenas')) {
-    return '¡Hola! Qué gusto saludarte. ¿En qué puedo ayudarte hoy? ✨';
+    return 'Hola Sara, ¿en qué te puedo ayudar? ✨';
   }
 
   if (lower.includes('quien eres') || lower.includes('quién eres') || lower.includes('tu nombre')) {
-    return 'Soy tu Agente Asistente Virtual 3D interactivo con IA. ¡Puedes hablarme o pedirme lo que necesites!';
+    return 'Hola Sara, soy tu asistente virtual 3D. ¡Puedes hablarme o pedirme lo que necesites!';
   }
 
   if (lower.includes('gracias')) {
