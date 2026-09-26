@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Base de Conocimiento - Aprender</title>
+  <title>Base de Conocimiento</title>
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#8B5CF6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,65 +16,65 @@
   <div class="learn-container">
     <div class="learn-header">
       <h1 style="font-size: 1.4rem; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
-        📖 Base de Conocimiento (Aprender)
+        Base de Conocimiento
       </h1>
       <a href="./index.html" class="btn-action" style="background: var(--primary-light); color: var(--primary-purple); text-decoration: none;">
-        ⬅️ Volver
+        Volver
       </a>
     </div>
 
     <!-- Two-Column Grid Layout -->
     <div class="learn-grid">
 
-      <!-- Column 1: Cargar Data (Carga de Archivos, FAQs y Sheets) -->
+      <!-- Column 1: Cargar Data -->
       <div class="section-card">
-        <h3>📥 Cargar Data</h3>
+        <h3>Cargar Data</h3>
 
         <!-- Tab Navigation for Upload Types -->
         <div class="tab-buttons">
-          <button class="tab-btn active" data-tab="tab-faq">❓ FAQ</button>
-          <button class="tab-btn" data-tab="tab-sheet">📊 Sheet / URL</button>
-          <button class="tab-btn" data-tab="tab-file">📁 Archivo TXT/CSV</button>
+          <button class="tab-btn active" data-tab="tab-faq">FAQ</button>
+          <button class="tab-btn" data-tab="tab-sheet">Sheet / URL</button>
+          <button class="tab-btn" data-tab="tab-file">Archivo TXT/CSV</button>
         </div>
 
         <!-- Tab 1: Formulario FAQ -->
         <div id="tab-faq" class="tab-content active">
           <div class="form-group">
-            <label for="faq-question">Título / Pregunta</label>
-            <input type="text" id="faq-question" class="form-input" placeholder="Ej. ¿Qué servicios ofrece la empresa?">
+            <label for="faq-question">Titulo / Pregunta</label>
+            <input type="text" id="faq-question" class="form-input" placeholder="Ej. Cuales son los horarios de atencion?">
           </div>
           <div class="form-group">
-            <label for="faq-answer">Descripción / Respuesta</label>
-            <textarea id="faq-answer" class="form-textarea" placeholder="Ej. Ofrecemos diseño 3D, desarrollo web y asistencia con IA."></textarea>
+            <label for="faq-answer">Descripcion / Respuesta</label>
+            <textarea id="faq-answer" class="form-textarea" placeholder="Ej. Atendemos de lunes a viernes de 9am a 6pm."></textarea>
           </div>
           <button id="btn-add-faq" class="btn-action" style="background: var(--primary-purple); color: white; width: 100%; justify-content: center;">
-            ➕ Guardar FAQ
+            Guardar FAQ
           </button>
         </div>
 
         <!-- Tab 2: Google Sheets / URL -->
         <div id="tab-sheet" class="tab-content">
           <div class="form-group">
-            <label for="doc-title">Título del Documento / Tabla</label>
-            <input type="text" id="doc-title" class="form-input" placeholder="Ej. Catálogo de productos 2025">
+            <label for="doc-title">Titulo del Documento / Tabla</label>
+            <input type="text" id="doc-title" class="form-input" placeholder="Ej. Precios de productos 2025">
           </div>
           <div class="form-group">
             <label for="doc-url">URL de Google Sheets (Publicado como CSV) o Enlace</label>
             <input type="url" id="doc-url" class="form-input" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
           </div>
           <div class="form-group">
-            <label for="doc-desc">Descripción adicional</label>
-            <textarea id="doc-desc" class="form-textarea" placeholder="Breve descripción del contenido..."></textarea>
+            <label for="doc-desc">Descripcion adicional</label>
+            <textarea id="doc-desc" class="form-textarea" placeholder="Breve descripcion del contenido..."></textarea>
           </div>
           <button id="btn-add-sheet" class="btn-action" style="background: var(--accent-blue); color: white; width: 100%; justify-content: center;">
-            🔗 Vincular Sheet / URL
+            Vincular Sheet / URL
           </button>
         </div>
 
         <!-- Tab 3: Carga de Archivo TXT / CSV -->
         <div id="tab-file" class="tab-content">
           <div class="form-group">
-            <label for="file-title">Título del Archivo</label>
+            <label for="file-title">Titulo del Archivo</label>
             <input type="text" id="file-title" class="form-input" placeholder="Ej. Manual de usuario">
           </div>
           <div class="form-group">
@@ -82,11 +82,11 @@
             <input type="file" id="file-input" class="form-input" accept=".txt,.csv,.json,.md">
           </div>
           <div class="form-group">
-            <label for="file-desc">Descripción</label>
+            <label for="file-desc">Descripcion</label>
             <textarea id="file-desc" class="form-textarea" placeholder="Detalles sobre el archivo..."></textarea>
           </div>
           <button id="btn-upload-file" class="btn-action" style="background: var(--accent-pink); color: white; width: 100%; justify-content: center;">
-            📤 Cargar Archivo
+            Cargar Archivo
           </button>
         </div>
 
@@ -94,16 +94,16 @@
 
       <!-- Column 2: Filtrar, Editar y Eliminar Data -->
       <div class="section-card">
-        <h3>🔍 Filtrar & Administrar Data</h3>
+        <h3>Filtrar y Administrar Data</h3>
 
         <div class="filter-bar">
-          <input type="text" id="search-title" class="form-input" placeholder="🔎 Buscar por título o contenido...">
+          <input type="text" id="search-title" class="form-input" placeholder="Buscar por titulo o contenido...">
 
           <div class="filter-buttons">
             <button class="filter-chip active" data-filter="all">Todos</button>
-            <button class="filter-chip" data-filter="faq">❓ FAQs</button>
-            <button class="filter-chip" data-filter="sheet">📊 Sheets</button>
-            <button class="filter-chip" data-filter="file">📁 Archivos</button>
+            <button class="filter-chip" data-filter="faq">FAQs</button>
+            <button class="filter-chip" data-filter="sheet">Sheets</button>
+            <button class="filter-chip" data-filter="file">Archivos</button>
           </div>
         </div>
 

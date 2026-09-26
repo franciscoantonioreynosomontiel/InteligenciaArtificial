@@ -32,16 +32,15 @@ function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
 
   if (modelViewer) {
-    // Prevent default jump/tap animations on click, open chat drawer instead
-    modelViewer.addEventListener('click', (e) => {
-      // Open chat drawer when clicking on the model viewer character
+    // Open chat drawer when clicking on the model viewer character
+    modelViewer.addEventListener('click', () => {
       const chatDrawer = document.getElementById('chat-drawer');
       if (chatDrawer) {
         chatDrawer.classList.add('open');
       }
     });
 
-    // Handle error loading GLTF (if file is placeholder or corrupt) -> fallback to Three.js procedurally generated character
+    // Handle error loading GLTF -> fallback to Three.js procedurally generated character
     modelViewer.addEventListener('error', () => {
       console.warn('model-viewer failed to load GLTF, launching fallback 3D scene.');
       modelViewer.style.display = 'none';
@@ -68,7 +67,7 @@ function setupSpeechRecognition() {
     isRecording = true;
     const micBtn = document.getElementById('btn-mic');
     if (micBtn) micBtn.classList.add('recording');
-    updateThoughtBubble('Escuchando... Háblame 🎙️');
+    updateThoughtBubble('Escuchando... Hablame');
   };
 
   recognition.onresult = (event) => {
@@ -100,7 +99,6 @@ function setupEventListeners() {
     btnToggleSpeech.addEventListener('click', () => {
       speechEnabled = !speechEnabled;
       btnToggleSpeech.classList.toggle('active', speechEnabled);
-      btnToggleSpeech.innerText = speechEnabled ? '🔊' : '🔇';
       showToast(speechEnabled ? 'Voz activada' : 'Voz desactivada');
     });
   }
@@ -110,7 +108,7 @@ function setupEventListeners() {
   if (btnMic) {
     btnMic.addEventListener('click', () => {
       if (!recognition) {
-        showToast('El reconocimiento de voz no está soportado en este navegador.');
+        showToast('El reconocimiento de voz no esta soportado en este navegador.');
         return;
       }
       if (isRecording) {
@@ -174,7 +172,7 @@ function setupEventListeners() {
         cameraModal.classList.add('open');
       } catch (err) {
         console.error('Error accessing camera:', err);
-        showToast('No se pudo acceder a la cámara.');
+        showToast('No se pudo acceder a la camara.');
       }
     });
   }
@@ -215,8 +213,8 @@ function setupEventListeners() {
       });
 
       // Notify user
-      updateThoughtBubble('Foto capturada 📸. Escríbeme o háblame para preguntarme sobre ella.');
-      showToast('Foto cargada para análisis');
+      updateThoughtBubble('Foto capturada. Escribeme o hablame para preguntarme sobre ella.');
+      showToast('Foto cargada para analisis');
     });
   }
 
@@ -252,7 +250,7 @@ async function handleUserInput(text) {
   if (previewElem) previewElem.style.display = 'none';
 
   // Thought bubble thinking state
-  updateThoughtBubble('Pensando... 🤔');
+  updateThoughtBubble('Pensando...');
 
   try {
     const responseText = await processGeminiRequest(text, attachedData);
@@ -269,7 +267,7 @@ async function handleUserInput(text) {
     }
   } catch (err) {
     console.error('Error processing AI response:', err);
-    const errorMsg = 'Lo siento, ocurrió un pequeño error. Por favor intenta de nuevo.';
+    const errorMsg = 'Lo siento, ocurrio un pequeño error. Por favor intenta de nuevo.';
     updateThoughtBubble(errorMsg);
     appendChatMessage(errorMsg, 'ai');
   }
@@ -315,7 +313,7 @@ function speakResponse(text) {
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'es-ES';
   utterance.rate = 1.0;
-  utterance.pitch = 1.1; // Slightly sweet/friendly pitch
+  utterance.pitch = 1.1;
 
   utterance.onstart = () => {
     if (scene3D) scene3D.setSpeakingState(true);

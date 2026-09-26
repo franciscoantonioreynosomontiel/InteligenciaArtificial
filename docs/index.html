@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Asistente 3D</title>
+  <title>PWA</title>
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#8B5CF6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +22,7 @@
       <model-viewer
         id="bot-model-viewer"
         src="./assets/img/ia.gltf"
-        alt="Personaje 3D Asistente"
+        alt="Personaje 3D"
         auto-rotate
         rotation-per-second="18deg"
         camera-controls
@@ -41,20 +41,17 @@
 
     <!-- Top Navigation Header Bar -->
     <header class="top-bar">
-      <div class="brand-title">
-        <span class="brand-icon">✨</span>
-        <span>Asistente</span>
-      </div>
+      <div></div> <!-- Spacer -->
 
       <div class="top-actions">
         <!-- Audio Speech Toggle -->
-        <button id="btn-toggle-speech" class="btn-icon active" title="Activar/Desactivar Voz">
-          🔊
+        <button id="btn-toggle-speech" class="btn-icon active" title="Voz" aria-label="Voz">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
         </button>
 
         <!-- Learn / Knowledge Base Page Button -->
-        <a href="./aprender.html" class="btn-icon" title="Base de Conocimiento (Aprender)">
-          📖
+        <a href="./aprender.html" class="btn-icon" title="Base de Conocimiento" aria-label="Base de Conocimiento">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
         </a>
       </div>
     </header>
@@ -62,7 +59,7 @@
     <!-- Floating Thought / Speech Bubble -->
     <div class="thought-bubble-container">
       <div id="thought-bubble" class="thought-bubble">
-        <p id="thought-text">Hola Sara, ¿en qué te puedo ayudar? ✨</p>
+        <p id="thought-text">Hola Sara, en que te puedo ayudar?</p>
       </div>
       <div class="thought-tail">
         <div class="thought-tail-dot dot-1"></div>
@@ -73,33 +70,33 @@
     <!-- Floating Strategic Action Control Bar -->
     <div class="bottom-control-bar">
       <!-- Camera Button -->
-      <button id="btn-camera" class="btn-icon" title="Tomar Foto / Cámara">
-        📷
+      <button id="btn-camera" class="btn-icon" title="Camara" aria-label="Camara">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
       </button>
 
       <!-- Main Mic / Voice Speak Button -->
-      <button id="btn-mic" class="btn-icon btn-main-mic" title="Mantén presionado o click para hablar">
-        🎙️
+      <button id="btn-mic" class="btn-icon btn-main-mic" title="Hablar" aria-label="Hablar">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
       </button>
 
       <!-- Toggle Chat Drawer Button -->
-      <button id="btn-chat-toggle" class="btn-icon" title="Abrir Chat">
-        💬
+      <button id="btn-chat-toggle" class="btn-icon" title="Chat" aria-label="Chat">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
       </button>
     </div>
 
     <!-- Chat Drawer Side Panel -->
     <aside id="chat-drawer" class="chat-drawer">
       <div class="chat-header">
-        <h2><span>💬</span> Conversación</h2>
-        <button id="btn-close-chat" class="btn-icon" style="width: 36px; height: 36px; font-size: 1rem;">
-          ✕
+        <h2>Conversacion</h2>
+        <button id="btn-close-chat" class="btn-icon" style="width: 36px; height: 36px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
 
       <div id="chat-messages" class="chat-messages">
         <div class="chat-msg ai">
-          Hola Sara, ¿en qué te puedo ayudar hoy? Puedes enviarme texto o capturar una foto.
+          Hola Sara, en que te puedo ayudar?
         </div>
       </div>
 
@@ -114,8 +111,8 @@
 
       <div class="chat-input-bar">
         <input type="text" id="chat-input" placeholder="Escribe un mensaje..." autocomplete="off">
-        <button id="btn-send-chat" class="btn-send" title="Enviar">
-          ➔
+        <button id="btn-send-chat" class="btn-send" title="Enviar" aria-label="Enviar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
         </button>
       </div>
     </aside>
@@ -124,13 +121,13 @@
     <div id="camera-modal" class="camera-modal">
       <div class="camera-box">
         <h3 style="font-size: 1.1rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
-          📷 Capturar Foto para Análisis
+          Capturar Foto
         </h3>
         <video id="camera-stream" class="camera-preview" autoplay playsinline></video>
         <canvas id="camera-canvas" style="display: none;"></canvas>
         <div class="camera-controls">
           <button id="btn-snap-photo" class="btn-action btn-snap">
-            📸 Capturar Foto
+            Capturar Foto
           </button>
           <button id="btn-close-camera" class="btn-action btn-close-cam">
             Cancelar
