@@ -21,12 +21,63 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAlgorithmUI();
   renderKnowledgeList();
 
+  // Load latest data from Supabase
+  fetchSupabaseData();
+
   // Handlers for Column 1 Uploads
   document.getElementById('btn-add-faq')?.addEventListener('click', handleAddFaq);
   document.getElementById('btn-add-sheet')?.addEventListener('click', handleAddSheet);
   document.getElementById('btn-upload-file')?.addEventListener('click', handleUploadFile);
   document.getElementById('btn-add-algorithm')?.addEventListener('click', handleAddAlgorithm);
 });
+
+async function fetchSupabaseData() {
+  try {
+    const { data: knowledgeData, error: kErr } = await supabase.from('knowledge').select('*');
+    if (!kErr && Array.isArray(knowledgeData) && knowledgeData.length > 0) {
+      const items = knowledgeData.map((k) => ({
+        id: 'faq_' + k.id,
+        db_id: k.id,
+        type: k.type,
+        title: k.title,
+        content: k.content,
+        url: k.url,
+        createdAt: k.created_at
+      }));
+      localStorage.setItem(KNOWLEDGE_STORAGE_KEY, JSON.stringify(items));
+    }
+
+    const { data: alarmsData, error: aErr } = await supabase.from('alarms_reminders').select('*');
+    if (!aErr && Array.isArray(alarmsData) && alarmsData.length > 0) {
+      const rules = alarmsData.map((a) => ({
+        id: 'alg_' + a.id,
+        db_id: a.id,
+        type: a.type,
+        category: 'algorithm',
+        title: a.name,
+        name: a.name,
+        message: a.message,
+        scheduleMode: a.schedule_mode || 'days',
+        days: a.days || [],
+        date: a.specific_date || null,
+        time: a.time || '08:00',
+        useRange: a.use_range || false,
+        rangeStart: a.range_start || null,
+        rangeEnd: a.range_end || null,
+        sound: a.sound || 'Predeterminado',
+        soundUrl: a.sound_url || null,
+        volume: a.volume || 0.8,
+        active: a.active !== false,
+        createdAt: a.created_at
+      }));
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(rules));
+    }
+
+    renderKnowledgeList();
+  } catch (e) {
+    console.warn('Could not fetch initial data from Supabase:', e);
+  }
+}
 
 function setupFileInputDisplay() {
   const fileInput = document.getElementById('file-input');
@@ -61,7 +112,7 @@ function setupAlgorithmUI() {
     updateVisibility();
   }
 
-  // Segmented Schedule Buttons (Días vs Fecha)
+  // Segmented Schedule Buttons
   const segmentScheduleBtns = document.querySelectorAll('.segment-schedule');
   const daysContainer = document.getElementById('rule-days-container');
   const dateContainer = document.getElementById('rule-date-container');
@@ -90,7 +141,7 @@ function setupAlgorithmUI() {
     });
   });
 
-  // Time Range Checkbox Toggle (Hides single time container when range active)
+  // Time Range Checkbox Toggle
   const useRangeCheckbox = document.getElementById('rule-use-range');
   const singleTimeContainer = document.getElementById('rule-single-time-container');
   const rangeContainer = document.getElementById('rule-range-container');
@@ -195,7 +246,7 @@ async function handleAddFaq() {
   const answer = answerInput.value.trim();
 
   if (!question || !answer) {
-    alert('Por favor completa el titulo/pregunta y la descripcion.');
+    alert('Por favor completa el titulo y la descripcion.');
     return;
   }
 
@@ -305,11 +356,10 @@ async function handleAddAlgorithm() {
   const message = msgInput.value.trim();
 
   if (!name) {
-    alert('Por favor especifica un título para la regla / recordatorio.');
+    alert('Por favor especifica un titulo para la regla / recordatorio.');
     return;
   }
 
-  // Get active days if in days mode
   const activeDays = [];
   if (currentScheduleMode === 'days') {
     document.querySelectorAll('.day-chip.active').forEach((chip) => {
@@ -317,7 +367,6 @@ async function handleAddAlgorithm() {
     });
   }
 
-  // Get stop actions for Alarma
   const stopActions = [];
   if (currentRuleType === 'alarma') {
     document.querySelectorAll('.stop-action-cb:checked').forEach((cb) => {
@@ -327,12 +376,12 @@ async function handleAddAlgorithm() {
 
   const newRule = {
     id: 'alg_' + Date.now(),
-    type: currentRuleType, // 'alarma' or 'recordatorio'
+    type: currentRuleType,
     category: 'algorithm',
     title: name,
     name: name,
     message: message || name,
-    scheduleMode: currentScheduleMode, // 'days' or 'date'
+    scheduleMode: currentScheduleMode,
     days: activeDays,
     date: currentScheduleMode === 'date' ? dateInput.value : null,
     time: timeInput.value || '08:00',
@@ -350,7 +399,6 @@ async function handleAddAlgorithm() {
 
   saveAlgorithmItem(newRule);
 
-  // Clear inputs
   nameInput.value = '';
   msgInput.value = '';
   uploadedSoundData = null;
@@ -362,10 +410,7 @@ async function handleAddAlgorithm() {
 
 function saveAlgorithmItem(newRule) {
   const rules = getLocalAlarms();
-  rules.push(newRule);
-  saveLocalAlarms(rules);
 
-  // Sync Supabase
   try {
     supabase.from('alarms_reminders').insert([{
       type: newRule.type,
@@ -389,31 +434,38 @@ function saveAlgorithmItem(newRule) {
       max_repeats: newRule.maxRepeats,
       interaction: newRule.interaction,
       active: newRule.active
-    }]).then(({ error }) => {
-      if (error) console.log('Supabase alarms sync info:', error.message);
+    }]).select().then(({ data, error }) => {
+      if (!error && data && data[0]) {
+        newRule.db_id = data[0].id;
+      }
+      rules.push(newRule);
+      saveLocalAlarms(rules);
     });
   } catch (e) {
-    console.log('Supabase alarms sync error:', e);
+    rules.push(newRule);
+    saveLocalAlarms(rules);
   }
 }
 
 function saveItem(newItem) {
   const items = getLocalKnowledge();
-  items.push(newItem);
-  saveLocalKnowledge(items);
 
-  // Sync Supabase
   try {
     supabase.from('knowledge').insert([{
       type: newItem.type,
       title: newItem.title,
       content: newItem.content,
       url: newItem.url || null
-    }]).then(({ error }) => {
-      if (error) console.log('Supabase sync info:', error.message);
+    }]).select().then(({ data, error }) => {
+      if (!error && data && data[0]) {
+        newItem.db_id = data[0].id;
+      }
+      items.push(newItem);
+      saveLocalKnowledge(items);
     });
   } catch (e) {
-    console.log('Supabase sync error:', e);
+    items.push(newItem);
+    saveLocalKnowledge(items);
   }
 }
 
@@ -434,7 +486,6 @@ function renderKnowledgeList() {
     combined = knowledgeItems.filter((i) => i.type === currentFilter);
   }
 
-  // Filter by search text
   if (currentSearchQuery) {
     combined = combined.filter(
       (item) =>
@@ -457,10 +508,10 @@ function renderKnowledgeList() {
     div.className = 'knowledge-item';
 
     if (item.category === 'algorithm') {
-      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
       let scheduleText = '';
       if (item.scheduleMode === 'days') {
-        const daysStr = (item.days || []).map((d) => dayNames[d]).join(', ') || 'Todos los días';
+        const daysStr = (item.days || []).map((d) => dayNames[d]).join(', ') || 'Todos los dias';
         scheduleText = `${daysStr} a las ${item.time}`;
       } else {
         scheduleText = `Fecha: ${item.date || 'Pendiente'} a las ${item.time}`;
@@ -506,7 +557,6 @@ function renderKnowledgeList() {
       }
 
     } else {
-      // Standard Knowledge item
       div.innerHTML = `
         <div class="knowledge-item-header">
           <div class="knowledge-item-title">${escapeHtml(item.title)}</div>
@@ -527,25 +577,49 @@ function renderKnowledgeList() {
   });
 }
 
-function toggleRuleActive(id, isActive) {
+async function toggleRuleActive(id, isActive) {
   let rules = getLocalAlarms();
   const index = rules.findIndex((r) => r.id === id);
   if (index !== -1) {
-    rules[index].active = isActive;
+    const targetRule = rules[index];
+    targetRule.active = isActive;
     saveLocalAlarms(rules);
     showToast(isActive ? 'Regla activada' : 'Regla desactivada');
+
+    try {
+      if (targetRule.db_id) {
+        await supabase.from('alarms_reminders').update({ active: isActive }).eq('id', targetRule.db_id);
+      } else {
+        await supabase.from('alarms_reminders').update({ active: isActive }).eq('name', targetRule.name);
+      }
+    } catch (e) {
+      console.warn('Supabase toggle active sync error:', e);
+    }
   }
 }
 
-function deleteAlgorithmItem(id) {
+async function deleteAlgorithmItem(id) {
   if (!confirm('Esta seguro de eliminar este algoritmo/regla?')) return;
   let rules = getLocalAlarms();
+  const target = rules.find((r) => r.id === id);
   rules = rules.filter((r) => r.id !== id);
   saveLocalAlarms(rules);
   showToast('Regla eliminada');
+
+  if (target) {
+    try {
+      if (target.db_id) {
+        await supabase.from('alarms_reminders').delete().eq('id', target.db_id);
+      } else {
+        await supabase.from('alarms_reminders').delete().eq('name', target.name);
+      }
+    } catch (e) {
+      console.warn('Supabase delete alarm sync error:', e);
+    }
+  }
 }
 
-function editAlgorithmItem(rule) {
+async function editAlgorithmItem(rule) {
   const newName = prompt('Editar nombre de la regla:', rule.name || rule.title);
   if (newName === null) return;
 
@@ -558,24 +632,59 @@ function editAlgorithmItem(rule) {
   let rules = getLocalAlarms();
   const index = rules.findIndex((r) => r.id === rule.id);
   if (index !== -1) {
-    rules[index].name = newName.trim() || rule.name;
-    rules[index].title = newName.trim() || rule.title;
-    rules[index].message = newMsg.trim() || rule.message;
-    rules[index].time = newTime.trim() || rule.time;
+    const updatedName = newName.trim() || rule.name;
+    const updatedMsg = newMsg.trim() || rule.message;
+    const updatedTime = newTime.trim() || rule.time;
+
+    rules[index].name = updatedName;
+    rules[index].title = updatedName;
+    rules[index].message = updatedMsg;
+    rules[index].time = updatedTime;
     saveLocalAlarms(rules);
     showToast('Regla actualizada');
+
+    try {
+      if (rule.db_id) {
+        await supabase.from('alarms_reminders').update({
+          name: updatedName,
+          message: updatedMsg,
+          time: updatedTime
+        }).eq('id', rule.db_id);
+      } else {
+        await supabase.from('alarms_reminders').update({
+          name: updatedName,
+          message: updatedMsg,
+          time: updatedTime
+        }).eq('name', rule.name);
+      }
+    } catch (e) {
+      console.warn('Supabase edit alarm sync error:', e);
+    }
   }
 }
 
-function deleteItem(id) {
+async function deleteItem(id) {
   if (!confirm('Esta seguro de eliminar este registro?')) return;
   let items = getLocalKnowledge();
+  const target = items.find((item) => item.id === id);
   items = items.filter((item) => item.id !== id);
   saveLocalKnowledge(items);
   showToast('Registro eliminado');
+
+  if (target) {
+    try {
+      if (target.db_id) {
+        await supabase.from('knowledge').delete().eq('id', target.db_id);
+      } else {
+        await supabase.from('knowledge').delete().eq('title', target.title);
+      }
+    } catch (e) {
+      console.warn('Supabase delete item sync error:', e);
+    }
+  }
 }
 
-function editItem(item) {
+async function editItem(item) {
   const newTitle = prompt('Editar titulo:', item.title);
   if (newTitle === null) return;
 
@@ -585,10 +694,29 @@ function editItem(item) {
   let items = getLocalKnowledge();
   const index = items.findIndex((i) => i.id === item.id);
   if (index !== -1) {
-    items[index].title = newTitle.trim() || item.title;
-    items[index].content = newContent.trim() || item.content;
+    const updatedTitle = newTitle.trim() || item.title;
+    const updatedContent = newContent.trim() || item.content;
+
+    items[index].title = updatedTitle;
+    items[index].content = updatedContent;
     saveLocalKnowledge(items);
     showToast('Registro actualizado');
+
+    try {
+      if (item.db_id) {
+        await supabase.from('knowledge').update({
+          title: updatedTitle,
+          content: updatedContent
+        }).eq('id', item.db_id);
+      } else {
+        await supabase.from('knowledge').update({
+          title: updatedTitle,
+          content: updatedContent
+        }).eq('title', item.title);
+      }
+    } catch (e) {
+      console.warn('Supabase edit item sync error:', e);
+    }
   }
 }
 
