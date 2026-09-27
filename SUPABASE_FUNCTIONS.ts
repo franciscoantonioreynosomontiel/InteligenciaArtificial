@@ -13,21 +13,42 @@ function cleanAIResponseText(text: string): string {
   if (!text) return '';
   let cleaned = text;
 
-  // 1. If response contains meta-text or bullet thought lists, extract the last quoted string or paragraph
-  if (cleaned.includes('* User input') || cleaned.includes('* Persona') || cleaned.includes('* Constraints') || cleaned.includes('* Direct answer')) {
-    const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{5,})"/g)];
-    if (quotesMatch.length > 0) {
-      cleaned = quotesMatch[quotesMatch.length - 1][1];
-    } else {
-      const lines = cleaned.split('\n').filter(l => !l.trim().startsWith('*'));
-      cleaned = lines.join(' ').trim();
+  // 1. Remove thinking blocks if present (e.g., <thought>...</thought> or <think>...</think>)
+  cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
+
+  // 2. Remove meta-headers and bullet thought lists (e.g., * User input, * Thinking, * Direct answer, etc.)
+  const lines = cleaned.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('*') && (
+      trimmed.toLowerCase().includes('user input') ||
+      trimmed.toLowerCase().includes('persona') ||
+      trimmed.toLowerCase().includes('constraint') ||
+      trimmed.toLowerCase().includes('thought') ||
+      trimmed.toLowerCase().includes('direct answer') ||
+      trimmed.toLowerCase().includes('reasoning') ||
+      trimmed.toLowerCase().includes('spanish')
+    )) {
+      return false;
+    }
+    return true;
+  });
+
+  cleaned = filteredLines.join(' ').trim();
+
+  // 3. If quotes exist around direct speech, extract the final quoted response if available
+  const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
+  if (quotesMatch.length > 0) {
+    const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
+    if (lastQuote.length > 3) {
+      cleaned = lastQuote;
     }
   }
 
-  // 2. Remove markdown symbols and quotes
-  cleaned = cleaned.replace(/[*_~`"]/g, '').trim();
+  // 4. Remove leftover markdown symbols and formatting
+  cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 3. Remove duplicate sentences if AI repeated itself
+  // 5. Deduplicate identical sentences
   const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
   const uniqueSentences: string[] = [];
   for (const sentence of sentences) {
@@ -58,31 +79,31 @@ serve(async (req: Request) => {
       );
     }
 
-    // Fast direct model selection
-    const availableModels = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-2.0-flash'];
+    // Fast direct model selection (flash first for speed)
+    const availableModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 
     // 2. Preparar el contenido (texto e imagen base64 si aplica)
-    const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
+    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
     const rawImageData = image || image_url;
     if (rawImageData && typeof rawImageData === 'string' && rawImageData.includes('base64,')) {
       const mimeType = rawImageData.substring(rawImageData.indexOf(':') + 1, rawImageData.indexOf(';'));
       const base64Data = rawImageData.split(',')[1];
       parts.push({
-        inline_data: {
-          mime_type: mimeType || 'image/jpeg',
+        inlineData: {
+          mimeType: mimeType || 'image/jpeg',
           data: base64Data
         }
       });
     }
 
     parts.push({ text: userPrompt });
-    const contents = [{ parts }];
+    const contents = [{ role: 'user', parts }];
 
     const systemInstruction = {
       parts: [
         {
-          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE únicamente la respuesta final directa al usuario.\n2. NUNCA incluyas tu proceso de pensamiento, razonamiento interno, análisis, opciones alternativas ni notas explicativas.\n3. NUNCA respondas ni agregues traducciones o texto en inglés.\n4. Mantén un tono alegre, cálido, positivo y servicial en todo momento."
+          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE ÚNICAMENTE con la respuesta final hablada en español directo al usuario.\n2. PROHIBIDO incluir pensamientos, razonamiento interno, procesos, notas en inglés, asteriscos o listas de tareas.\n3. Sé directa, alegre, cálida y muy rápida."
         }
       ]
     };
@@ -92,17 +113,24 @@ serve(async (req: Request) => {
     let aiData: any = null;
 
     for (const modelName of availableModels) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
       try {
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ systemInstruction, contents })
+          body: JSON.stringify({
+            systemInstruction,
+            contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 250
+            }
+          })
         });
 
         const data = await res.json();
-        if (res.ok && data.candidates) {
+        if (res.ok && data.candidates && data.candidates.length > 0) {
           geminiRes = res;
           aiData = data;
           break;

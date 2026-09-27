@@ -162,22 +162,44 @@ export function cleanAIResponseText(text) {
   if (!text) return '';
   let cleaned = text;
 
-  // 1. If response contains meta-text or bullet thought lists, extract the last quoted string or paragraph
-  if (cleaned.includes('* User input') || cleaned.includes('* Persona') || cleaned.includes('* Constraints') || cleaned.includes('* Direct answer')) {
-    const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{5,})"/g)];
-    if (quotesMatch.length > 0) {
-      cleaned = quotesMatch[quotesMatch.length - 1][1];
-    } else {
-      const lines = cleaned.split('\n').filter(l => !l.trim().startsWith('*'));
-      cleaned = lines.join(' ').trim();
+  // 1. Remove thinking blocks if present
+  cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
+
+  // 2. Remove meta-headers and bullet thought lists
+  const lines = cleaned.split('\n');
+  const filteredLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (
+      trimmed.startsWith('*') &&
+      (trimmed.toLowerCase().includes('user input') ||
+        trimmed.toLowerCase().includes('persona') ||
+        trimmed.toLowerCase().includes('constraint') ||
+        trimmed.toLowerCase().includes('thought') ||
+        trimmed.toLowerCase().includes('direct answer') ||
+        trimmed.toLowerCase().includes('reasoning') ||
+        trimmed.toLowerCase().includes('spanish'))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  cleaned = filteredLines.join(' ').trim();
+
+  // 3. If quotes exist around direct speech, extract the final quoted response if available
+  const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
+  if (quotesMatch.length > 0) {
+    const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
+    if (lastQuote.length > 3) {
+      cleaned = lastQuote;
     }
   }
 
-  // 2. Remove markdown symbols and quotes
-  cleaned = cleaned.replace(/[*_~`"]/g, '').trim();
+  // 4. Remove leftover markdown symbols and formatting
+  cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 3. Remove duplicate sentences if AI repeated itself
-  const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
+  // 5. Deduplicate identical sentences
+  const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map((s) => s.trim()).filter(Boolean);
   const uniqueSentences = [];
   for (const sentence of sentences) {
     if (!uniqueSentences.includes(sentence)) {
@@ -252,11 +274,11 @@ function generateClientFallbackResponse(prompt, attachment) {
   const dateStr = targetDate.toISOString().split('T')[0];
 
   // 1. Check for Alarm creation
-  if (lower.includes('despiertame') || lower.includes('alarma') || lower.includes('despertar')) {
+  if (lower.includes('despiertame') || lower.includes('despiértame') || lower.includes('alarma') || lower.includes('despertar')) {
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
 
     if (!timeMatch) {
-      return `¡Con mucho gusto te ayudo a crear tu alarma! ¿A qué hora te gustaría despertar?`;
+      return `¡Con mucho gusto te ayudo a crear tu alarma! ¿Para qué día y a qué hora te gustaría despertar?`;
     }
 
     let h = parseInt(timeMatch[1]);
@@ -268,24 +290,25 @@ function generateClientFallbackResponse(prompt, attachment) {
     const min = String(m).padStart(2, '0');
     const formattedTime = `${hour}:${min}`;
 
-    const isSpecificDate = lower.includes('mañana') || lower.includes('pasado mañana') || lower.includes('el día') || lower.includes('fecha');
     const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
+
+    // Default target date logic if single day
+    let alarmDate = dateStr;
+    const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (!lower.includes('mañana') && !lower.includes('pasado mañana') && formattedTime > currentHourMin) {
+      alarmDate = now.toISOString().split('T')[0]; // today if time hasn't passed
+    }
 
     const alarmData = {
       nombre: `Alarma ${formattedTime}`,
       hora: formattedTime,
       mensaje: '¡Es hora de despertar y comenzar el día con la mejor actitud!',
-      fecha: (!isRecurring && isSpecificDate) ? dateStr : null
+      fecha: isRecurring ? null : alarmDate,
+      dias: isRecurring ? [0, 1, 2, 3, 4, 5, 6] : null
     };
 
-    if (isRecurring) {
-      alarmData.dias = [0, 1, 2, 3, 4, 5, 6];
-    } else if (!isSpecificDate) {
-      alarmData.fecha = dateStr; // default to tomorrow if unspecified
-    }
-
     const result = executeAlarmTool('crear_alarma', alarmData);
-    return `¡Listo! ${result} Ha quedado registrada en tu sección de Algoritmos.`;
+    return `¡Listo! ${result} Guardada en tus Algoritmos en aprender.html.`;
   }
 
   // 2. Check for Reminder creation
@@ -293,7 +316,7 @@ function generateClientFallbackResponse(prompt, attachment) {
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
 
     if (!timeMatch) {
-      return `¡Por supuesto! Dime a qué hora necesitas que te lo recuerde y con gusto guardo tu recordatorio.`;
+      return `¡Por supuesto! Dime qué día y a qué hora necesitas que te lo recuerde y con gusto guardo tu recordatorio.`;
     }
 
     let h = parseInt(timeMatch[1]);
@@ -308,23 +331,24 @@ function generateClientFallbackResponse(prompt, attachment) {
     let topic = prompt.replace(/recuerdame|recuérdame|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?/gi, '').trim();
     if (!topic || topic.length < 2) topic = 'Recordatorio pendiente';
 
-    const isSpecificDate = lower.includes('mañana') || lower.includes('pasado mañana') || lower.includes('el día') || lower.includes('fecha');
     const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
+
+    let reminderDate = dateStr;
+    const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (!lower.includes('mañana') && !lower.includes('pasado mañana') && formattedTime > currentHourMin) {
+      reminderDate = now.toISOString().split('T')[0];
+    }
 
     const reminderData = {
       nombre: topic,
       hora: formattedTime,
       mensaje: `Hola, recuerda: ${topic}`,
-      fecha: (!isRecurring) ? dateStr : null
+      fecha: isRecurring ? null : reminderDate,
+      dias: isRecurring ? [0, 1, 2, 3, 4, 5, 6] : null
     };
 
-    if (isRecurring) {
-      reminderData.dias = [0, 1, 2, 3, 4, 5, 6];
-      reminderData.fecha = null;
-    }
-
     const result = executeAlarmTool('crear_recordatorio', reminderData);
-    return `¡Entendido! ${result} Te avisaré justo a tiempo.`;
+    return `¡Entendido! ${result} Guardado en tus Algoritmos en aprender.html.`;
   }
 
   if (lower.includes('cancela') || lower.includes('elimina') || lower.includes('borra')) {

@@ -88,18 +88,13 @@ function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
 
   if (modelViewer) {
-    // Open chat drawer when clicking on the model viewer character OR stop alarm if touch interaction enabled
+    // Handle touch stop for active alarm if configured. Clicking character does NOT open chat drawer.
     modelViewer.addEventListener('click', () => {
       if (currentTriggeredAlarm) {
         const actions = currentTriggeredAlarm.stopActions || ['button'];
         if (actions.includes('touch')) {
           stopActiveAlarm();
-          return;
         }
-      }
-      const chatDrawer = document.getElementById('chat-drawer');
-      if (chatDrawer) {
-        chatDrawer.classList.add('open');
       }
     });
 
@@ -176,6 +171,11 @@ function setupEventListeners() {
     btnToggleSpeech.addEventListener('click', () => {
       mainSpeechEnabled = !mainSpeechEnabled;
       btnToggleSpeech.classList.toggle('active', mainSpeechEnabled);
+      const chatDrawer = document.getElementById('chat-drawer');
+      const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+      if (!isChatOpen && !mainSpeechEnabled && synth) {
+        synth.cancel();
+      }
       showToast(mainSpeechEnabled ? 'Voz principal activada' : 'Voz principal desactivada');
     });
   }
@@ -186,6 +186,11 @@ function setupEventListeners() {
     btnChatToggleSpeech.addEventListener('click', () => {
       chatSpeechEnabled = !chatSpeechEnabled;
       btnChatToggleSpeech.classList.toggle('active', chatSpeechEnabled);
+      const chatDrawer = document.getElementById('chat-drawer');
+      const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+      if (isChatOpen && !chatSpeechEnabled && synth) {
+        synth.cancel();
+      }
       showToast(chatSpeechEnabled ? 'Voz de chat activada' : 'Voz de chat desactivada');
     });
   }
@@ -239,6 +244,9 @@ function setupEventListeners() {
       chatDrawer.classList.toggle('open');
       if (chatDrawer.classList.contains('open')) {
         hideThoughtBubble();
+        if (!chatSpeechEnabled && synth) synth.cancel();
+      } else {
+        if (!mainSpeechEnabled && synth) synth.cancel();
       }
     });
   }
@@ -246,6 +254,7 @@ function setupEventListeners() {
   if (btnCloseChat && chatDrawer) {
     btnCloseChat.addEventListener('click', () => {
       chatDrawer.classList.remove('open');
+      if (!mainSpeechEnabled && synth) synth.cancel();
     });
   }
 
@@ -496,7 +505,10 @@ function triggerAlarmEvent(rule) {
 
   // 2. Speak message
   showThoughtBubble(rule.message || rule.name, 6000);
-  if (speechEnabled && rule.message) {
+  const chatDrawer = document.getElementById('chat-drawer');
+  const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+  const allowVoice = isChatOpen ? chatSpeechEnabled : mainSpeechEnabled;
+  if (allowVoice && rule.message) {
     speakResponse(rule.message);
   }
 
@@ -731,6 +743,33 @@ function appendChatMessage(text, sender, imageBase64 = null) {
     const img = document.createElement('img');
     img.src = imageBase64;
     msgDiv.appendChild(img);
+  }
+
+  if (sender === 'ai' && text) {
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'chat-msg-actions';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-copy-msg';
+    copyBtn.type = 'button';
+    copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> <span>Copiar</span>`;
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Texto copiado al portapapeles');
+      }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showToast('Texto copiado al portapapeles');
+      });
+    });
+
+    actionsDiv.appendChild(copyBtn);
+    msgDiv.appendChild(actionsDiv);
   }
 
   chatMessages.appendChild(msgDiv);
