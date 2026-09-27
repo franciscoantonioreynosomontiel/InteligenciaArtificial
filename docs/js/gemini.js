@@ -241,9 +241,10 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
 
     if (edgeResponse.ok) {
       const resData = await edgeResponse.json();
-      if (resData && resData.reply) {
+      if (resData && resData.reply && !resData.reply.startsWith('Error')) {
         return cleanAIResponseText(resData.reply);
       }
+      console.warn('Supabase Edge function returned error reply:', resData ? resData.reply : 'empty');
     } else {
       console.warn('Supabase Edge function call returned status:', edgeResponse.status);
     }
