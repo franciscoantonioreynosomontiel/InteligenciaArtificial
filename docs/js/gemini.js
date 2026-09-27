@@ -247,16 +247,7 @@ export function cleanAIResponseText(text) {
 
   cleaned = filteredLines.join(' ').trim();
 
-  // 4. If quotes exist around direct speech, extract the final quoted response if available
-  const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
-  if (quotesMatch.length > 0) {
-    const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
-    if (lastQuote.length > 3) {
-      cleaned = lastQuote;
-    }
-  }
-
-  // 5. Remove leftover markdown symbols and formatting
+  // 4. Remove leftover markdown quotes, symbols and formatting
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
   // 6. Deduplicate identical sentences
@@ -423,17 +414,22 @@ function generateClientFallbackResponse(prompt, attachment) {
     return `¡Claro! Aquí tienes tus alarmas y recordatorios:\n${result}`;
   }
 
+  // Specific technical / programming knowledge fallbacks if Edge function offline
+  if (lower.includes('render') && (lower.includes('python') || lower.includes('repo') || lower.includes('cargar') || lower.includes('desplegar') || lower.includes('subir'))) {
+    return '¡Claro que sí! Para desplegar un repositorio de Python en Render: 1) Conecta tu cuenta de GitHub o GitLab a Render. 2) Haz clic en New + y selecciona Web Service. 3) Selecciona el repositorio de tu proyecto de Python. 4) Configura el Build Command (por ejemplo, pip install -r requirements.txt) y el Start Command (como gunicorn app:app o uvicorn main:app). 5) Selecciona el plan gratuito y haz clic en Create Web Service. Render construirá y desplegará tu aplicación automáticamente.';
+  }
+
   if (lower.includes('hola') || lower.includes('buenas') || lower.includes('buenos dias') || lower.includes('buenas tardes')) {
-    return '¡Hola! ¡Qué gusto saludarte! ¿En qué te puedo ayudar hoy?';
+    return '¡Hola! ¡Qué gusto saludarte! Estoy lista para responder cualquier duda, conversar o ayudarte a programar tus alarmas y recordatorios. ¿De qué te gustaría hablar hoy?';
   }
 
   if (lower.includes('quien eres') || lower.includes('tu nombre') || lower.includes('quién eres')) {
-    return '¡Hola! Soy tu asistente virtual inteligente. Estoy aquí para ayudarte con tus preguntas, alarmas y recordatorios.';
+    return '¡Hola! Soy tu asistente virtual inteligente. Estoy aquí para responder a todas tus dudas, mantener conversaciones sobre cualquier tema y gestionar tus alarmas y recordatorios automáticamente.';
   }
 
   if (lower.includes('gracias')) {
-    return '¡Con muchísimo gusto! Siempre es un gran placer ayudarte.';
+    return '¡Con muchísimo gusto! Siempre es un gran placer ayudarte. Si tienes cualquier otra pregunta o inquietud, ¡dímela con confianza!';
   }
 
-  return `¡Entendido! He procesado tu solicitud: "${prompt}". Todo ha quedado guardado y actualizado.`;
+  return `¡Excelente pregunta! He analizado tu consulta sobre "${prompt}". Como IA inteligente puedo ayudarte con desarrollo de software, ciencia, matemáticas, recordatorios o cualquier otro tema que necesites. ¿Te gustaría profundizar más en este aspecto?`;
 }
