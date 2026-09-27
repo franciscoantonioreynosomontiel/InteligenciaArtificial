@@ -253,6 +253,8 @@ body {
   transform: translateX(100%);
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   border-left: 1px solid var(--card-border);
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .chat-drawer.open {
@@ -276,6 +278,14 @@ body {
   gap: 8px;
 }
 
+.chat-messages,
+.chat-messages *,
+.chat-msg,
+.chat-msg * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 .chat-messages {
   flex: 1;
   padding: 16px;
@@ -283,8 +293,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  user-select: text !important;
-  -webkit-user-select: text !important;
 }
 
 .chat-msg {
@@ -294,8 +302,6 @@ body {
   font-size: 0.95rem;
   line-height: 1.45;
   animation: msgPop 0.25s ease-out;
-  user-select: text !important;
-  -webkit-user-select: text !important;
 }
 
 .chat-drawer.drag-over {
