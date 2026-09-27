@@ -4,8 +4,11 @@ import { processGeminiRequest, formulateAIReminderMessage } from './gemini.js';
 import { uploadToCloudinary } from './cloudinary.js';
 
 let scene3D = null;
-let speechEnabled = true;
-let isRecording = false;
+let mainSpeechEnabled = true;
+let chatSpeechEnabled = true;
+let isMainRecording = false;
+let isChatRecording = false;
+let activeRecordingSource = null; // 'main' or 'chat'
 let currentAttachment = null; // { base64, url }
 let recognition = null;
 let synth = window.speechSynthesis;
@@ -125,16 +128,24 @@ function setupSpeechRecognition() {
   recognition.continuous = false;
 
   recognition.onstart = () => {
-    isRecording = true;
-    const micBtn = document.getElementById('btn-mic');
-    if (micBtn) micBtn.classList.add('recording');
-    showThoughtBubble('Escuchando... Hablame', 0);
+    if (activeRecordingSource === 'main') {
+      isMainRecording = true;
+      const micBtn = document.getElementById('btn-mic');
+      if (micBtn) micBtn.classList.add('recording');
+      showThoughtBubble('Escuchando... Háblame', 0);
+    } else if (activeRecordingSource === 'chat') {
+      isChatRecording = true;
+      const chatMicBtn = document.getElementById('btn-chat-mic');
+      if (chatMicBtn) chatMicBtn.classList.add('recording');
+    }
   };
 
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
     console.log('Voice Input:', transcript);
-    handleUserInput(transcript, true);
+    const source = activeRecordingSource;
+    stopRecording();
+    handleUserInput(transcript, true, source === 'chat');
   };
 
   recognition.onerror = (event) => {
@@ -148,33 +159,67 @@ function setupSpeechRecognition() {
 }
 
 function stopRecording() {
-  isRecording = false;
+  isMainRecording = false;
+  isChatRecording = false;
+  activeRecordingSource = null;
+
   const micBtn = document.getElementById('btn-mic');
   if (micBtn) micBtn.classList.remove('recording');
+
+  const chatMicBtn = document.getElementById('btn-chat-mic');
+  if (chatMicBtn) chatMicBtn.classList.remove('recording');
 }
 
 function setupEventListeners() {
-  // Speech Output Toggle
+  // Main Screen Speech Toggle
   const btnToggleSpeech = document.getElementById('btn-toggle-speech');
   if (btnToggleSpeech) {
     btnToggleSpeech.addEventListener('click', () => {
-      speechEnabled = !speechEnabled;
-      btnToggleSpeech.classList.toggle('active', speechEnabled);
-      showToast(speechEnabled ? 'Voz activada' : 'Voz desactivada');
+      mainSpeechEnabled = !mainSpeechEnabled;
+      btnToggleSpeech.classList.toggle('active', mainSpeechEnabled);
+      showToast(mainSpeechEnabled ? 'Voz principal activada' : 'Voz principal desactivada');
     });
   }
 
-  // Voice Mic Button
+  // Chat Drawer Speech Toggle
+  const btnChatToggleSpeech = document.getElementById('btn-chat-toggle-speech');
+  if (btnChatToggleSpeech) {
+    btnChatToggleSpeech.addEventListener('click', () => {
+      chatSpeechEnabled = !chatSpeechEnabled;
+      btnChatToggleSpeech.classList.toggle('active', chatSpeechEnabled);
+      showToast(chatSpeechEnabled ? 'Voz de chat activada' : 'Voz de chat desactivada');
+    });
+  }
+
+  // Main Voice Mic Button
   const btnMic = document.getElementById('btn-mic');
   if (btnMic) {
     btnMic.addEventListener('click', () => {
       if (!recognition) {
-        showToast('El reconocimiento de voz no esta soportado en este navegador.');
+        showToast('El reconocimiento de voz no está soportado en este navegador.');
         return;
       }
-      if (isRecording) {
+      if (isMainRecording || isChatRecording) {
         recognition.stop();
       } else {
+        activeRecordingSource = 'main';
+        recognition.start();
+      }
+    });
+  }
+
+  // Chat Mic Button
+  const btnChatMic = document.getElementById('btn-chat-mic');
+  if (btnChatMic) {
+    btnChatMic.addEventListener('click', () => {
+      if (!recognition) {
+        showToast('El reconocimiento de voz no está soportado en este navegador.');
+        return;
+      }
+      if (isMainRecording || isChatRecording) {
+        recognition.stop();
+      } else {
+        activeRecordingSource = 'chat';
         recognition.start();
       }
     });
@@ -279,6 +324,54 @@ function setupEventListeners() {
       // Notify user
       showThoughtBubble('Foto capturada. Escribeme o hablame para preguntarme sobre ella.', 4000);
       showToast('Foto cargada para analisis');
+    });
+  }
+
+  // Chat Image Upload Button & Hidden Input
+  const btnChatImage = document.getElementById('btn-chat-image');
+  const chatFileInput = document.getElementById('chat-file-input');
+
+  if (btnChatImage && chatFileInput) {
+    btnChatImage.addEventListener('click', () => {
+      chatFileInput.click();
+    });
+
+    chatFileInput.addEventListener('change', () => {
+      if (chatFileInput.files && chatFileInput.files[0]) {
+        processAndAttachImageFile(chatFileInput.files[0]);
+      }
+    });
+  }
+
+  // Drag and Drop Image File Support on Chat Drawer
+  if (chatDrawer) {
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      chatDrawer.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        chatDrawer.classList.add('drag-over');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach((eventName) => {
+      chatDrawer.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        chatDrawer.classList.remove('drag-over');
+      });
+    });
+
+    chatDrawer.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          processAndAttachImageFile(file);
+        } else {
+          showToast('Por favor arrastra un archivo de imagen válido.');
+        }
+      }
     });
   }
 
@@ -526,6 +619,24 @@ function snoozeActiveAlarm(minutes = 5) {
   }
 }
 
+function processAndAttachImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64Data = e.target.result;
+    currentAttachment = { base64: base64Data };
+    showAttachmentPreview(base64Data);
+
+    uploadToCloudinary(base64Data).then((cloudUrl) => {
+      if (cloudUrl) {
+        currentAttachment.url = cloudUrl;
+      }
+    });
+
+    showToast('Imagen adjuntada correctamente.');
+  };
+  reader.readAsDataURL(file);
+}
+
 function showAttachmentPreview(base64Src) {
   const previewElem = document.getElementById('attached-preview');
   const imgElem = document.getElementById('attached-img');
@@ -535,7 +646,7 @@ function showAttachmentPreview(base64Src) {
   }
 }
 
-async function handleUserInput(text, isVoice = false) {
+async function handleUserInput(text, isVoice = false, fromChat = false) {
   if (!text && !currentAttachment) return;
 
   // Check if active alarm can be stopped by phrase/speaking
@@ -557,9 +668,9 @@ async function handleUserInput(text, isVoice = false) {
   if (previewElem) previewElem.style.display = 'none';
 
   const chatDrawer = document.getElementById('chat-drawer');
-  const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+  const isChatOpen = fromChat || (chatDrawer && chatDrawer.classList.contains('open'));
 
-  if (isVoice && !isChatOpen) {
+  if (!isChatOpen) {
     showThoughtBubble('Pensando...', 0);
   } else {
     hideThoughtBubble();
@@ -568,8 +679,8 @@ async function handleUserInput(text, isVoice = false) {
   try {
     const responseText = await processGeminiRequest(text, attachedData);
 
-    if (isVoice && !isChatOpen) {
-      showThoughtBubble(responseText, 5000);
+    if (!isChatOpen) {
+      showThoughtBubble(responseText, 6000);
     } else {
       hideThoughtBubble();
     }
@@ -577,14 +688,20 @@ async function handleUserInput(text, isVoice = false) {
     // Display response in chat
     appendChatMessage(responseText, 'ai');
 
-    // Speak response if voice enabled
-    if (speechEnabled && responseText) {
-      speakResponse(responseText, isVoice && !isChatOpen);
+    // Speak response depending on whether interaction happened on main screen or inside chat
+    if (isChatOpen) {
+      if (chatSpeechEnabled && responseText) {
+        speakResponse(responseText, false);
+      }
+    } else {
+      if (mainSpeechEnabled && responseText) {
+        speakResponse(responseText, true);
+      }
     }
   } catch (err) {
     console.error('Error processing AI response:', err);
-    const errorMsg = 'Lo siento, ocurrio un pequeño error. Por favor intenta de nuevo.';
-    if (isVoice && !isChatOpen) {
+    const errorMsg = 'Lo siento, ocurrió un pequeño error. Por favor intenta de nuevo.';
+    if (!isChatOpen) {
       showThoughtBubble(errorMsg, 4000);
     } else {
       hideThoughtBubble();

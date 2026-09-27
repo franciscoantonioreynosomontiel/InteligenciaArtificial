@@ -161,7 +161,14 @@ export async function formulateAIReminderMessage(referenceText) {
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
-  const fullPrompt = `${userPrompt || 'Que ves en esta imagen?'}${contextKnowledge}${contextAlarms}`;
+
+  const systemPrompt = `[INSTRUCCIONES DE COMPORTAMIENTO Y PERSONALIDAD DE LA IA]:
+- Eres una asistente virtual alegre, amable, entusiasta y muy inteligente.
+- REGLA ABSOLUTA: Responde ÚNICAMENTE con el mensaje final directo en español.
+- NUNCA incluyas pensamientos, análisis interno, procesos, notas, sugerencias en inglés ni opciones en paréntesis.
+- Responde siempre de forma natural, alegre y concreta.`;
+
+  const fullPrompt = `${systemPrompt}\n\nPregunta del usuario: ${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}`;
 
   // 1. Try calling Supabase Edge Function first
   try {
@@ -200,98 +207,117 @@ function generateClientFallbackResponse(prompt, attachment) {
   const lower = (prompt || '').toLowerCase();
 
   if (attachment) {
-    return `He analizado la imagen que me mostraste. Se ve muy clara. Te gustaria saber algo mas especifico sobre ella?`;
+    return `¡Por supuesto! He analizado la imagen que me enviaste. ¡Se ve genial y muy clara! ¿Hay algo específico que te gustaría consultar sobre ella?`;
   }
 
-  // 1. Check for Alarm / Reminder creation or management natural language intents
+  // Calculate target date helper
+  const now = new Date();
+  let targetDate = new Date(now);
+
+  if (lower.includes('mañana')) {
+    targetDate.setDate(now.getDate() + 1);
+  } else if (lower.includes('pasado mañana')) {
+    targetDate.setDate(now.getDate() + 2);
+  }
+  const dateStr = targetDate.toISOString().split('T')[0];
+
+  // 1. Check for Alarm creation
   if (lower.includes('despiertame') || lower.includes('alarma') || lower.includes('despertar')) {
-    // Extract time (e.g. 4:35, 5 am, 7:00)
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
-    let hour = '07';
-    let min = '00';
 
-    if (timeMatch) {
-      let h = parseInt(timeMatch[1]);
-      const m = timeMatch[2] || '00';
-      const period = timeMatch[3];
-      if (period === 'pm' && h < 12) h += 12;
-      if (period === 'am' && h === 12) h = 0;
-      hour = String(h).padStart(2, '0');
-      min = String(m).padStart(2, '0');
+    if (!timeMatch) {
+      return `¡Con mucho gusto te ayudo a crear tu alarma! ¿A qué hora te gustaría despertar?`;
     }
 
-    // Days extraction (e.g. lunes a jueves -> 1,2,3,4)
-    let days = [1, 2, 3, 4, 5]; // Default Mon-Fri
-    if (lower.includes('lunes a jueves')) days = [1, 2, 3, 4];
-    if (lower.includes('todos los dias')) days = [0, 1, 2, 3, 4, 5, 6];
-    if (lower.includes('fines de semana')) days = [0, 6];
+    let h = parseInt(timeMatch[1]);
+    const m = timeMatch[2] || '00';
+    const period = timeMatch[3];
+    if (period === 'pm' && h < 12) h += 12;
+    if (period === 'am' && h === 12) h = 0;
+    const hour = String(h).padStart(2, '0');
+    const min = String(m).padStart(2, '0');
+    const formattedTime = `${hour}:${min}`;
 
-    const result = executeAlarmTool('crear_alarma', {
-      nombre: `Alarma ${hour}:${min}`,
-      hora: `${hour}:${min}`,
-      dias: days,
-      mensaje: 'Es hora de despertar'
-    });
+    const isSpecificDate = lower.includes('mañana') || lower.includes('pasado mañana') || lower.includes('el día') || lower.includes('fecha');
+    const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
 
-    return `Listo Sara, ${result}`;
+    const alarmData = {
+      nombre: `Alarma ${formattedTime}`,
+      hora: formattedTime,
+      mensaje: '¡Es hora de despertar y comenzar el día con la mejor actitud!',
+      fecha: (!isRecurring && isSpecificDate) ? dateStr : null
+    };
+
+    if (isRecurring) {
+      alarmData.dias = [0, 1, 2, 3, 4, 5, 6];
+    } else if (!isSpecificDate) {
+      alarmData.fecha = dateStr; // default to tomorrow if unspecified
+    }
+
+    const result = executeAlarmTool('crear_alarma', alarmData);
+    return `¡Listo! ${result} Ha quedado registrada en tu sección de Algoritmos.`;
   }
 
-  if (lower.includes('recuerdame') || lower.includes('recordatorio')) {
+  // 2. Check for Reminder creation
+  if (lower.includes('recuerdame') || lower.includes('recuérdame') || lower.includes('recordatorio') || lower.includes('recordar')) {
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
-    let hour = '08';
-    let min = '00';
 
-    if (timeMatch) {
-      let h = parseInt(timeMatch[1]);
-      const m = timeMatch[2] || '00';
-      const period = timeMatch[3];
-      if (period === 'pm' && h < 12) h += 12;
-      if (period === 'am' && h === 12) h = 0;
-      hour = String(h).padStart(2, '0');
-      min = String(m).padStart(2, '0');
+    if (!timeMatch) {
+      return `¡Por supuesto! Dime a qué hora necesitas que te lo recuerde y con gusto guardo tu recordatorio.`;
     }
 
-    // Extract range e.g. entre 8 y 10 pm
-    let rangeStart = null;
-    let rangeEnd = null;
-    if (lower.includes('entre') && lower.includes('y')) {
-      rangeStart = `${hour}:${min}`;
-      rangeEnd = '22:00';
+    let h = parseInt(timeMatch[1]);
+    const m = timeMatch[2] || '00';
+    const period = timeMatch[3];
+    if (period === 'pm' && h < 12) h += 12;
+    if (period === 'am' && h === 12) h = 0;
+    const hour = String(h).padStart(2, '0');
+    const min = String(m).padStart(2, '0');
+    const formattedTime = `${hour}:${min}`;
+
+    let topic = prompt.replace(/recuerdame|recuérdame|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?/gi, '').trim();
+    if (!topic || topic.length < 2) topic = 'Recordatorio pendiente';
+
+    const isSpecificDate = lower.includes('mañana') || lower.includes('pasado mañana') || lower.includes('el día') || lower.includes('fecha');
+    const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
+
+    const reminderData = {
+      nombre: topic,
+      hora: formattedTime,
+      mensaje: `Hola, recuerda: ${topic}`,
+      fecha: (!isRecurring) ? dateStr : null
+    };
+
+    if (isRecurring) {
+      reminderData.dias = [0, 1, 2, 3, 4, 5, 6];
+      reminderData.fecha = null;
     }
 
-    const result = executeAlarmTool('crear_recordatorio', {
-      nombre: prompt.replace(/recuerdame/i, '').trim() || 'Recordatorio especial',
-      hora: `${hour}:${min}`,
-      rango_inicio: rangeStart,
-      rango_fin: rangeEnd,
-      limite_rango: 1,
-      mensaje: prompt
-    });
-
-    return `Entendido Sara. ${result}`;
+    const result = executeAlarmTool('crear_recordatorio', reminderData);
+    return `¡Entendido! ${result} Te avisaré justo a tiempo.`;
   }
 
   if (lower.includes('cancela') || lower.includes('elimina') || lower.includes('borra')) {
     const result = executeAlarmTool('eliminar_alarma', { nombre: lower });
-    return `Entendido: ${result}`;
+    return `¡Entendido! ${result}`;
   }
 
-  if (lower.includes('que alarmas') || lower.includes('mis alarmas') || lower.includes('mis recordatorios')) {
+  if (lower.includes('que alarmas') || lower.includes('mis alarmas') || lower.includes('mis recordatorios') || lower.includes('qué alarmas')) {
     const result = executeAlarmTool('consultar_alarmas', {});
-    return `Tus alarmas y recordatorios:\n${result}`;
+    return `¡Claro! Aquí tienes tus alarmas y recordatorios:\n${result}`;
   }
 
-  if (lower.includes('hola') || lower.includes('buenas')) {
-    return 'Hola Sara, en que te puedo ayudar?';
+  if (lower.includes('hola') || lower.includes('buenas') || lower.includes('buenos dias') || lower.includes('buenas tardes')) {
+    return '¡Hola! ¡Qué gusto saludarte! ¿En qué te puedo ayudar hoy?';
   }
 
-  if (lower.includes('quien eres') || lower.includes('tu nombre')) {
-    return 'Hola Sara, en que te puedo ayudar?';
+  if (lower.includes('quien eres') || lower.includes('tu nombre') || lower.includes('quién eres')) {
+    return '¡Hola! Soy tu asistente virtual inteligente. Estoy aquí para ayudarte con tus preguntas, alarmas y recordatorios.';
   }
 
   if (lower.includes('gracias')) {
-    return 'De nada. Siempre es un placer ayudarte.';
+    return '¡Con muchísimo gusto! Siempre es un gran placer ayudarte.';
   }
 
-  return `Entendido: "${prompt}". Tu peticion ha sido registrada. Puedes gestionar mas detalles en la seccion de Algoritmos en aprender.html.`;
+  return `¡Entendido! He procesado tu solicitud: "${prompt}". Todo ha quedado guardado y actualizado.`;
 }

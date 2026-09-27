@@ -66,6 +66,14 @@ serve(async (req: Request) => {
     parts.push({ text: userPrompt });
     const contents = [{ parts }];
 
+    const systemInstruction = {
+      parts: [
+        {
+          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE únicamente la respuesta final directa al usuario.\n2. NUNCA incluyas tu proceso de pensamiento, razonamiento interno, análisis, opciones alternativas ni notas explicativas.\n3. NUNCA respondas ni agregues traducciones o texto en inglés.\n4. Mantén un tono alegre, cálido, positivo y servicial en todo momento."
+        }
+      ]
+    };
+
     // 3. Probar con los modelos disponibles hasta obtener respuesta exitosa
     let geminiRes: Response | null = null;
     let aiData: any = null;
@@ -77,7 +85,7 @@ serve(async (req: Request) => {
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents })
+          body: JSON.stringify({ systemInstruction, contents })
         });
 
         const data = await res.json();
