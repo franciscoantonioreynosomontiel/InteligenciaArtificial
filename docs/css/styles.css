@@ -355,6 +355,34 @@ body {
   color: var(--text-main);
   border: 1px solid #e2e8f0;
   border-bottom-left-radius: 4px;
+  position: relative;
+}
+
+.chat-msg-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.btn-copy-msg {
+  background: transparent;
+  border: none;
+  color: var(--primary-purple);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.btn-copy-msg:hover {
+  background: rgba(147, 51, 234, 0.1);
 }
 
 .chat-msg img {
