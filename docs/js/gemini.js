@@ -158,6 +158,36 @@ export async function formulateAIReminderMessage(referenceText) {
   return `Hola Sara, es hora de recordar: ${referenceText}.`;
 }
 
+export function cleanAIResponseText(text) {
+  if (!text) return '';
+  let cleaned = text;
+
+  // 1. If response contains meta-text or bullet thought lists, extract the last quoted string or paragraph
+  if (cleaned.includes('* User input') || cleaned.includes('* Persona') || cleaned.includes('* Constraints') || cleaned.includes('* Direct answer')) {
+    const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{5,})"/g)];
+    if (quotesMatch.length > 0) {
+      cleaned = quotesMatch[quotesMatch.length - 1][1];
+    } else {
+      const lines = cleaned.split('\n').filter(l => !l.trim().startsWith('*'));
+      cleaned = lines.join(' ').trim();
+    }
+  }
+
+  // 2. Remove markdown symbols and quotes
+  cleaned = cleaned.replace(/[*_~`"]/g, '').trim();
+
+  // 3. Remove duplicate sentences if AI repeated itself
+  const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
+  const uniqueSentences = [];
+  for (const sentence of sentences) {
+    if (!uniqueSentences.includes(sentence)) {
+      uniqueSentences.push(sentence);
+    }
+  }
+
+  return uniqueSentences.join(' ').trim() || cleaned;
+}
+
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
@@ -190,7 +220,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
     if (edgeResponse.ok) {
       const resData = await edgeResponse.json();
       if (resData && resData.reply) {
-        return resData.reply;
+        return cleanAIResponseText(resData.reply);
       }
     } else {
       console.warn('Supabase Edge function call returned status:', edgeResponse.status);
@@ -200,7 +230,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   }
 
   // 2. Fallback simulate / direct response if Edge function is not deployed yet
-  return generateClientFallbackResponse(userPrompt, attachmentData);
+  return cleanAIResponseText(generateClientFallbackResponse(userPrompt, attachmentData));
 }
 
 function generateClientFallbackResponse(prompt, attachment) {

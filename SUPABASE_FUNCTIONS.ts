@@ -9,6 +9,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function cleanAIResponseText(text: string): string {
+  if (!text) return '';
+  let cleaned = text;
+
+  // 1. If response contains meta-text or bullet thought lists, extract the last quoted string or paragraph
+  if (cleaned.includes('* User input') || cleaned.includes('* Persona') || cleaned.includes('* Constraints') || cleaned.includes('* Direct answer')) {
+    const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{5,})"/g)];
+    if (quotesMatch.length > 0) {
+      cleaned = quotesMatch[quotesMatch.length - 1][1];
+    } else {
+      const lines = cleaned.split('\n').filter(l => !l.trim().startsWith('*'));
+      cleaned = lines.join(' ').trim();
+    }
+  }
+
+  // 2. Remove markdown symbols and quotes
+  cleaned = cleaned.replace(/[*_~`"]/g, '').trim();
+
+  // 3. Remove duplicate sentences if AI repeated itself
+  const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
+  const uniqueSentences: string[] = [];
+  for (const sentence of sentences) {
+    if (!uniqueSentences.includes(sentence)) {
+      uniqueSentences.push(sentence);
+    }
+  }
+
+  return uniqueSentences.join(' ').trim() || cleaned;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -28,25 +58,8 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Consultar modelos disponibles en Google Gemini
-    let availableModels: string[] = [];
-    try {
-      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      const listData = await listRes.json();
-
-      if (listRes.ok && listData.models) {
-        availableModels = listData.models
-          .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent') && !m.name.includes('deprecated'))
-          .map((m: any) => m.name);
-      }
-    } catch (e) {
-      console.warn('Error listando modelos de Gemini:', e);
-    }
-
-    // Fallback si no se obtuvieron modelos de la lista
-    if (availableModels.length === 0) {
-      availableModels = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-2.0-flash'];
-    }
+    // Fast direct model selection
+    const availableModels = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-2.0-flash'];
 
     // 2. Preparar el contenido (texto e imagen base64 si aplica)
     const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
@@ -74,7 +87,7 @@ serve(async (req: Request) => {
       ]
     };
 
-    // 3. Probar con los modelos disponibles hasta obtener respuesta exitosa
+    // 3. Probar con los modelos de manera directa e hiper-rápida
     let geminiRes: Response | null = null;
     let aiData: any = null;
 
@@ -108,18 +121,21 @@ serve(async (req: Request) => {
 
     const candidate = aiData.candidates?.[0];
     const resParts = candidate?.content?.parts || [];
-    let reply = '';
+    let rawReply = '';
 
     for (const part of resParts) {
-      if (part.text) reply += part.text;
+      if (part.text) rawReply += part.text;
     }
 
-    if (!reply.trim()) {
-      reply = 'No pude procesar la respuesta.';
+    // Clean and sanitize response from thoughts, English meta-text, and prompt echo
+    let cleanReply = cleanAIResponseText(rawReply);
+
+    if (!cleanReply.trim()) {
+      cleanReply = '¡Hola! ¡Qué gusto saludarte! ¿En qué te puedo ayudar hoy?';
     }
 
     return new Response(
-      JSON.stringify({ reply }),
+      JSON.stringify({ reply: cleanReply }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

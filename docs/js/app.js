@@ -39,15 +39,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // 4. Start Real-time Alarm Execution Engine
   initAlarmExecutionEngine();
 
-  // 5. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides)
-  showThoughtBubble('Hola Sara, en que te puedo ayudar?', 4000);
+  // 5. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
+  showThoughtBubble('¡Hola Sara! ¿En qué te puedo ayudar hoy?', 3000);
 });
 
-function showThoughtBubble(text, autoHideMs = 4000) {
+function showThoughtBubble(text, autoHideMs = 3000) {
   const container = document.querySelector('.thought-bubble-container');
   const thoughtText = document.getElementById('thought-text');
 
-  // If chat drawer is open, do not display thought bubble
+  // If chat drawer is open, do not display thought bubble under any circumstance
   const chatDrawer = document.getElementById('chat-drawer');
   if (chatDrawer && chatDrawer.classList.contains('open')) {
     hideThoughtBubble();
@@ -67,11 +67,10 @@ function showThoughtBubble(text, autoHideMs = 4000) {
     thoughtBubbleTimer = null;
   }
 
-  if (autoHideMs > 0) {
-    thoughtBubbleTimer = setTimeout(() => {
-      hideThoughtBubble();
-    }, autoHideMs);
-  }
+  const timeoutDuration = Math.min(autoHideMs || 3000, 3000);
+  thoughtBubbleTimer = setTimeout(() => {
+    hideThoughtBubble();
+  }, timeoutDuration);
 }
 
 function hideThoughtBubble() {
@@ -195,6 +194,11 @@ function setupEventListeners() {
   const btnMic = document.getElementById('btn-mic');
   if (btnMic) {
     btnMic.addEventListener('click', () => {
+      const chatDrawer = document.getElementById('chat-drawer');
+      if (chatDrawer && chatDrawer.classList.contains('open')) {
+        showToast('Cierra el chat para usar el micrófono principal.');
+        return;
+      }
       if (!recognition) {
         showToast('El reconocimiento de voz no está soportado en este navegador.');
         return;
@@ -734,6 +738,19 @@ function appendChatMessage(text, sender, imageBase64 = null) {
 }
 
 function speakResponse(text, isVoiceBubble = false) {
+  const chatDrawer = document.getElementById('chat-drawer');
+  const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+
+  // Strict check on voice toggles
+  if (isChatOpen && !chatSpeechEnabled) {
+    if (synth) synth.cancel();
+    return;
+  }
+  if (!isChatOpen && !mainSpeechEnabled) {
+    if (synth) synth.cancel();
+    return;
+  }
+
   if (!synth) return;
 
   synth.cancel(); // Cancel any ongoing speech
@@ -752,7 +769,7 @@ function speakResponse(text, isVoiceBubble = false) {
   utterance.onend = () => {
     if (scene3D) scene3D.setSpeakingState(false);
     if (isVoiceBubble) {
-      setTimeout(() => hideThoughtBubble(), 3000);
+      setTimeout(() => hideThoughtBubble(), 2000);
     }
   };
 
