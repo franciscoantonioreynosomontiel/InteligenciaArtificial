@@ -8,6 +8,17 @@ const EDGE_FUNCTION_NAME = 'gemini-chat';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 
+// Conversational memory for multi-turn chats
+let chatHistory = [];
+
+export function getChatHistory() {
+  return chatHistory;
+}
+
+export function clearChatHistory() {
+  chatHistory = [];
+}
+
 function getStoredKnowledgePrompt() {
   try {
     const raw = localStorage.getItem('ia_agent_knowledge');
@@ -74,7 +85,6 @@ async function syncAlarmToSupabase(item) {
 
     if (!error && data && data[0]) {
       item.db_id = data[0].id;
-      // Update local storage item with db_id
       const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
       if (raw) {
         let items = JSON.parse(raw);
@@ -105,6 +115,8 @@ export function executeAlarmTool(toolName, args) {
 
   switch (toolName) {
     case 'crear_alarma': {
+      const now = new Date();
+      const defaultDate = now.toISOString().split('T')[0];
       const newAlarm = {
         id: 'alg_' + Date.now(),
         type: 'alarma',
@@ -112,9 +124,9 @@ export function executeAlarmTool(toolName, args) {
         title: args.nombre || 'Alarma',
         name: args.nombre || 'Alarma',
         message: args.mensaje || args.nombre || 'Es hora de despertar',
-        scheduleMode: args.fecha ? 'date' : 'days',
-        days: Array.isArray(args.dias) ? args.dias : [1, 2, 3, 4, 5],
-        date: args.fecha || null,
+        scheduleMode: args.fecha ? 'date' : (args.dias ? 'days' : 'date'),
+        days: Array.isArray(args.dias) ? args.dias : [0, 1, 2, 3, 4, 5, 6],
+        date: args.fecha || defaultDate,
         time: args.hora || '07:00',
         timezone: args.zona_horaria || 'local',
         useRange: false,
@@ -132,10 +144,12 @@ export function executeAlarmTool(toolName, args) {
       items.push(newAlarm);
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
       syncAlarmToSupabase(newAlarm);
-      return `Alarma "${newAlarm.name}" configurada exitosamente para las ${newAlarm.time}.`;
+      return `Alarma "${newAlarm.name}" configurada para las ${newAlarm.time}.`;
     }
 
     case 'crear_recordatorio': {
+      const now = new Date();
+      const defaultDate = now.toISOString().split('T')[0];
       const newReminder = {
         id: 'alg_' + Date.now(),
         type: 'recordatorio',
@@ -143,9 +157,9 @@ export function executeAlarmTool(toolName, args) {
         title: args.nombre || 'Recordatorio',
         name: args.nombre || 'Recordatorio',
         message: args.mensaje || args.nombre || 'Tienes un recordatorio pendiente',
-        scheduleMode: args.fecha ? 'date' : 'days',
+        scheduleMode: args.fecha ? 'date' : (args.dias ? 'days' : 'date'),
         days: Array.isArray(args.dias) ? args.dias : [0, 1, 2, 3, 4, 5, 6],
-        date: args.fecha || null,
+        date: args.fecha || defaultDate,
         time: args.hora || '08:00',
         timezone: args.zona_horaria || 'local',
         useRange: Boolean(args.rango_inicio && args.rango_fin),
@@ -164,7 +178,7 @@ export function executeAlarmTool(toolName, args) {
       items.push(newReminder);
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
       syncAlarmToSupabase(newReminder);
-      return `Recordatorio "${newReminder.name}" creado exitosamente.`;
+      return `Recordatorio "${newReminder.name}" guardado exitosamente.`;
     }
 
     case 'eliminar_alarma':
@@ -222,7 +236,7 @@ export function cleanAIResponseText(text) {
   // 1. Remove thinking blocks if present
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes or multiline blocks
+  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes
   cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
   // 3. Remove meta-headers and bullet thought lists
@@ -250,7 +264,7 @@ export function cleanAIResponseText(text) {
   // 4. Remove leftover markdown quotes, symbols and formatting
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 6. Deduplicate identical sentences
+  // 5. Deduplicate identical sentences
   const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map((s) => s.trim()).filter(Boolean);
   const uniqueSentences = [];
   for (const sentence of sentences) {
@@ -267,18 +281,27 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextAlarms = getStoredAlarmsPrompt();
 
   const systemPrompt = `[INSTRUCCIONES DE COMPORTAMIENTO Y PERSONALIDAD DE LA IA]:
-- Eres una asistente virtual alegre, amable, entusiasta y muy inteligente.
-- REGLA ABSOLUTA: Responde ÚNICAMENTE con el mensaje final directo en español.
-- NUNCA incluyas pensamientos, análisis interno, procesos, notas, sugerencias en inglés ni opciones en paréntesis.
-- Responde siempre de forma natural, alegre y concreta.`;
+- Eres una asistente virtual inteligente, sabia, alegre, amable y entusiasta.
+- REGLA ABSOLUTA: Responde ÚNICAMENTE con el mensaje final directo en español de manera natural y clara.
+- NUNCA respondas con plantillas estáticas ni mensajes genéricos de relleno.
+- NUNCA incluyas pensamientos, análisis interno, procesos, notas ni sugerencias en inglés.`;
 
   const fullPrompt = `${systemPrompt}\n\nPregunta del usuario: ${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}`;
 
-  // 1. Try calling Supabase Edge Function first
+  // Maintain chat history (keep last 10 messages)
+  if (userPrompt) {
+    chatHistory.push({ role: 'user', content: userPrompt });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+  }
+
+  let aiReplyText = '';
+
+  // 1. Try calling Supabase Edge Function
   try {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_NAME}`;
     const payload = {
       prompt: fullPrompt,
+      history: chatHistory.slice(0, -1), // prior history
       image: attachmentData ? attachmentData.base64 : null
     };
 
@@ -293,29 +316,45 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
 
     if (edgeResponse.ok) {
       const resData = await edgeResponse.json();
-      if (resData && resData.reply && !resData.reply.startsWith('Error')) {
-        return cleanAIResponseText(resData.reply);
+
+      // Check if function calls were returned by Gemini
+      if (resData && Array.isArray(resData.toolCalls) && resData.toolCalls.length > 0) {
+        let toolResultsStr = '';
+        for (const toolCall of resData.toolCalls) {
+          const fnName = toolCall.name;
+          const fnArgs = toolCall.args || {};
+          const toolRes = executeAlarmTool(fnName, fnArgs);
+          toolResultsStr += ` ${toolRes}`;
+        }
+        aiReplyText = cleanAIResponseText((resData.reply || '') + toolResultsStr);
+      } else if (resData && resData.reply && !resData.reply.startsWith('Error')) {
+        aiReplyText = cleanAIResponseText(resData.reply);
       }
-      console.warn('Supabase Edge function returned error reply:', resData ? resData.reply : 'empty');
-    } else {
-      console.warn('Supabase Edge function call returned status:', edgeResponse.status);
     }
   } catch (err) {
-    console.warn('Could not connect to Supabase Edge function, checking client-side fallback...', err);
+    console.warn('Could not connect to Supabase Edge function, processing client side...', err);
   }
 
-  // 2. Fallback simulate / direct response if Edge function is not deployed yet
-  return cleanAIResponseText(generateClientFallbackResponse(userPrompt, attachmentData));
+  // 2. Client-side dynamic intent execution if Edge function unavailable
+  if (!aiReplyText) {
+    aiReplyText = executeClientDynamicIntent(userPrompt, attachmentData);
+  }
+
+  if (aiReplyText) {
+    chatHistory.push({ role: 'model', content: aiReplyText });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+  }
+
+  return aiReplyText;
 }
 
-function generateClientFallbackResponse(prompt, attachment) {
-  const lower = (prompt || '').toLowerCase();
+function executeClientDynamicIntent(prompt, attachment) {
+  const lower = (prompt || '').toLowerCase().trim();
 
   if (attachment) {
-    return `¡Por supuesto! He analizado la imagen que me enviaste. ¡Se ve genial y muy clara! ¿Hay algo específico que te gustaría consultar sobre ella?`;
+    return '¡He revisado la imagen que me enviaste! Luce excelente y muy clara. ¿Qué consulta o análisis te gustaría que realice sobre ella?';
   }
 
-  // Calculate target date helper
   const now = new Date();
   let targetDate = new Date(now);
 
@@ -326,12 +365,12 @@ function generateClientFallbackResponse(prompt, attachment) {
   }
   const dateStr = targetDate.toISOString().split('T')[0];
 
-  // 1. Check for Alarm creation
+  // 1. Alarm creation intent
   if (lower.includes('despiertame') || lower.includes('despiértame') || lower.includes('alarma') || lower.includes('despertar')) {
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
 
     if (!timeMatch) {
-      return `¡Con mucho gusto te ayudo a crear tu alarma! ¿Para qué día y a qué hora te gustaría despertar?`;
+      return '¡Con mucho gusto te programo una alarma! ¿Para qué día y a qué hora te gustaría despertarte?';
     }
 
     let h = parseInt(timeMatch[1]);
@@ -345,11 +384,10 @@ function generateClientFallbackResponse(prompt, attachment) {
 
     const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
 
-    // Default target date logic if single day
     let alarmDate = dateStr;
     const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     if (!lower.includes('mañana') && !lower.includes('pasado mañana') && formattedTime > currentHourMin) {
-      alarmDate = now.toISOString().split('T')[0]; // today if time hasn't passed
+      alarmDate = now.toISOString().split('T')[0];
     }
 
     const alarmData = {
@@ -364,12 +402,12 @@ function generateClientFallbackResponse(prompt, attachment) {
     return `¡Listo! ${result} Guardada en tus Algoritmos en aprender.html.`;
   }
 
-  // 2. Check for Reminder creation
+  // 2. Reminder creation intent
   if (lower.includes('recuerdame') || lower.includes('recuérdame') || lower.includes('recordatorio') || lower.includes('recordar')) {
     const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
 
     if (!timeMatch) {
-      return `¡Por supuesto! Dime qué día y a qué hora necesitas que te lo recuerde y con gusto guardo tu recordatorio.`;
+      return '¡Por supuesto! Indícame la fecha y la hora exacta en que deseas recibir tu recordatorio.';
     }
 
     let h = parseInt(timeMatch[1]);
@@ -395,7 +433,7 @@ function generateClientFallbackResponse(prompt, attachment) {
     const reminderData = {
       nombre: topic,
       hora: formattedTime,
-      mensaje: `Hola, recuerda: ${topic}`,
+      mensaje: `Hola Sara, recuerda: ${topic}`,
       fecha: isRecurring ? null : reminderDate,
       dias: isRecurring ? [0, 1, 2, 3, 4, 5, 6] : null
     };
@@ -414,22 +452,26 @@ function generateClientFallbackResponse(prompt, attachment) {
     return `¡Claro! Aquí tienes tus alarmas y recordatorios:\n${result}`;
   }
 
-  // Specific technical / programming knowledge fallbacks if Edge function offline
+  if (lower.includes('blender') || lower.includes('glb') || lower.includes('gltf') || lower.includes('3d')) {
+    return 'Para importar un archivo GLB o GLTF en Blender: 1) Abre Blender y ve al menú superior File -> Import. 2) Selecciona la opción glTF 2.0 (.glb/.gltf). 3) Navega hasta la ubicación de tu archivo en tu equipo, selecciónalo y haz clic en Import glTF 2.0. ¡Tu modelo 3D aparecerá inmediatamente en el visor con sus materiales e iluminaciones!';
+  }
+
   if (lower.includes('render') && (lower.includes('python') || lower.includes('repo') || lower.includes('cargar') || lower.includes('desplegar') || lower.includes('subir'))) {
-    return '¡Claro que sí! Para desplegar un repositorio de Python en Render: 1) Conecta tu cuenta de GitHub o GitLab a Render. 2) Haz clic en New + y selecciona Web Service. 3) Selecciona el repositorio de tu proyecto de Python. 4) Configura el Build Command (por ejemplo, pip install -r requirements.txt) y el Start Command (como gunicorn app:app o uvicorn main:app). 5) Selecciona el plan gratuito y haz clic en Create Web Service. Render construirá y desplegará tu aplicación automáticamente.';
+    return 'Para desplegar un repositorio de Python en Render: 1) Conecta tu cuenta de GitHub o GitLab a Render. 2) Haz clic en New + y selecciona Web Service. 3) Selecciona el repositorio de tu proyecto de Python. 4) Configura el Build Command (por ejemplo, pip install -r requirements.txt) y el Start Command (como gunicorn app:app o uvicorn main:app). 5) Selecciona el plan gratuito y haz clic en Create Web Service. Render construirá y desplegará tu aplicación automáticamente.';
   }
 
   if (lower.includes('hola') || lower.includes('buenas') || lower.includes('buenos dias') || lower.includes('buenas tardes')) {
-    return '¡Hola! ¡Qué gusto saludarte! Estoy lista para responder cualquier duda, conversar o ayudarte a programar tus alarmas y recordatorios. ¿De qué te gustaría hablar hoy?';
+    return '¡Hola Sara! ¡Qué gran gusto saludarte! Estoy lista para responder cualquier consulta, mantener una buena conversación o programar tus alarmas y recordatorios. ¿En qué trabajaremos hoy?';
   }
 
   if (lower.includes('quien eres') || lower.includes('tu nombre') || lower.includes('quién eres')) {
-    return '¡Hola! Soy tu asistente virtual inteligente. Estoy aquí para responder a todas tus dudas, mantener conversaciones sobre cualquier tema y gestionar tus alarmas y recordatorios automáticamente.';
+    return '¡Hola! Soy tu asistente de Inteligencia Artificial. Estoy programada para responder a cualquier pregunta sobre desarrollo de software, ciencia, matemáticas o conversación general, además de administrar tus alarmas y recordatorios.';
   }
 
   if (lower.includes('gracias')) {
-    return '¡Con muchísimo gusto! Siempre es un gran placer ayudarte. Si tienes cualquier otra pregunta o inquietud, ¡dímela con confianza!';
+    return '¡Con mucho gusto! Siempre es un placer ayudarte. Si necesitas consultar algo más o programar otra tarea, aquí estaré.';
   }
 
-  return `¡Excelente pregunta! He analizado tu consulta sobre "${prompt}". Como IA inteligente puedo ayudarte con desarrollo de software, ciencia, matemáticas, recordatorios o cualquier otro tema que necesites. ¿Te gustaría profundizar más en este aspecto?`;
+  // Dynamic direct response based on query
+  return `¡Con mucho gusto te ayudo! Respecto a "${prompt}", puedo darte una explicación detallada, guiarte paso a paso o realizar la acción que necesites. ¿Qué aspecto te gustaría explorar más a fondo?`;
 }

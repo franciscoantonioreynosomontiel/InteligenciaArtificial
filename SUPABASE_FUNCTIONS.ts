@@ -19,7 +19,7 @@ function cleanAIResponseText(text: string): string {
   // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes or multiline blocks
   cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
-  // 3. Remove meta-headers and bullet thought lists (e.g., * User input, * Thinking, * Direct answer, etc.)
+  // 3. Remove meta-headers and bullet thought lists
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter(line => {
     const trimmed = line.trim();
@@ -40,10 +40,10 @@ function cleanAIResponseText(text: string): string {
 
   cleaned = filteredLines.join(' ').trim();
 
-  // 4. Remove leftover markdown quotes, symbols and formatting
+  // 4. Remove leftover markdown quotes and formatting symbols
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 6. Deduplicate identical sentences
+  // 5. Deduplicate identical sentences
   const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
   const uniqueSentences: string[] = [];
   for (const sentence of sentences) {
@@ -55,6 +55,60 @@ function cleanAIResponseText(text: string): string {
   return uniqueSentences.join(' ').trim() || cleaned;
 }
 
+const TOOL_DECLARATIONS = [
+  {
+    functionDeclarations: [
+      {
+        name: "crear_alarma",
+        description: "Crea o programa una nueva alarma para el usuario.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING", description: "Nombre o titulo de la alarma" },
+            hora: { type: "STRING", description: "Hora de la alarma en formato HH:MM (24 horas)" },
+            fecha: { type: "STRING", description: "Fecha en formato YYYY-MM-DD si aplica" },
+            mensaje: { type: "STRING", description: "Mensaje que hablara la IA al sonar la alarma" }
+          },
+          required: ["nombre", "hora"]
+        }
+      },
+      {
+        name: "crear_recordatorio",
+        description: "Crea o programa un nuevo recordatorio para el usuario.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING", description: "Nombre o asunto del recordatorio" },
+            hora: { type: "STRING", description: "Hora en formato HH:MM (24 horas)" },
+            fecha: { type: "STRING", description: "Fecha en formato YYYY-MM-DD" },
+            mensaje: { type: "STRING", description: "Mensaje que la IA dira como recordatorio" }
+          },
+          required: ["nombre", "hora"]
+        }
+      },
+      {
+        name: "eliminar_alarma",
+        description: "Elimina una alarma o recordatorio programado.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING", description: "Nombre de la alarma o recordatorio a eliminar" }
+          },
+          required: ["nombre"]
+        }
+      },
+      {
+        name: "consultar_alarmas",
+        description: "Consulta las alarmas y recordatorios actualmente programados.",
+        parameters: {
+          type: "OBJECT",
+          properties: {}
+        }
+      }
+    ]
+  }
+];
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -62,7 +116,7 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { prompt, message, image, image_url } = body;
+    const { prompt, message, history, image, image_url } = body;
     const userPrompt = prompt || message || 'Hola';
 
     const apiKey = (Deno.env.get('GEMINI_API_KEY') || Deno.env.get('OPENAI_API_KEY') || '').trim();
@@ -77,14 +131,27 @@ serve(async (req: Request) => {
     // Direct model selection (flash 2.0 first, then 1.5 flash, then 1.5 pro)
     const availableModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
-    // 2. Preparar el contenido (texto e imagen base64 si aplica)
-    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+    // 2. Preparar el contenido (historial conversacional + texto e imagen base64 si aplica)
+    const contents: Array<{ role: string; parts: Array<any> }> = [];
+
+    if (Array.isArray(history) && history.length > 0) {
+      for (const turn of history) {
+        if (turn.role && turn.content) {
+          contents.push({
+            role: turn.role === 'user' ? 'user' : 'model',
+            parts: [{ text: turn.content }]
+          });
+        }
+      }
+    }
+
+    const currentParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
     const rawImageData = image || image_url;
     if (rawImageData && typeof rawImageData === 'string' && rawImageData.includes('base64,')) {
       const mimeType = rawImageData.substring(rawImageData.indexOf(':') + 1, rawImageData.indexOf(';'));
       const base64Data = rawImageData.split(',')[1];
-      parts.push({
+      currentParts.push({
         inlineData: {
           mimeType: mimeType || 'image/jpeg',
           data: base64Data
@@ -92,18 +159,18 @@ serve(async (req: Request) => {
       });
     }
 
-    parts.push({ text: userPrompt });
-    const contents = [{ role: 'user', parts }];
+    currentParts.push({ text: userPrompt });
+    contents.push({ role: 'user', parts: currentParts });
 
     const systemInstruction = {
       parts: [
         {
-          text: "Eres una Inteligencia Artificial sumamente inteligente, sabia, alegre, amable, entusiasta y servicial. Tienes amplios conocimientos sobre programación, tecnología, despliegues (como GitHub, Render, Supabase), ciencia, cultura y conversación general.\n\nReglas estrictas e inviolables:\n1. Responde de forma clara, directa, inteligente, completa y alegre en español.\n2. PROHIBIDO incluir pensamientos internos, etiquetas como <thought>, procesos de razonamiento o notas en inglés.\n3. Sé muy atenta y resuelve cualquier duda que tenga el usuario con explicaciones precisas."
+          text: "Eres una Inteligencia Artificial sumamente inteligente, sabia, alegre, amable, entusiasta y servicial creada para interactuar con el usuario Sara. Posees conocimientos completos y profundos sobre programacion, ciencia, tecnologia, matematicas, cultura, conversacion general y gestion de tareas.\n\nReglas estrictas e inviolables:\n1. Responde a CUALQUIER pregunta, duda o tema que el usuario plantee de forma clara, natural, inteligente y alegre en espanol. NUNCA respondas con frases estaticas o predefinidas.\n2. Mantén conversaciones fluidas y contextuales de forma dinamica e inteligente.\n3. Si el usuario te pide crear, eliminar o consultar alarmas o recordatorios, invoca la herramienta correspondiente (crear_alarma, crear_recordatorio, eliminar_alarma, consultar_alarmas) o indica la accion para que el sistema la registre en aprender.html y en la base de datos.\n4. PROHIBIDO incluir pensamientos internos, etiquetas <thought>, procesos de razonamiento ni notas en ingles."
         }
       ]
     };
 
-    // 3. Probar con los modelos de manera directa e hiper-rápida
+    // 3. Probar con los modelos
     let geminiRes: Response | null = null;
     let aiData: any = null;
     let lastApiError: string = '';
@@ -113,10 +180,9 @@ serve(async (req: Request) => {
 
       const generationConfig: Record<string, any> = {
         temperature: 0.7,
-        maxOutputTokens: 1000
+        maxOutputTokens: 2048
       };
 
-      // Add thinkingConfig only for models supporting thinking budget
       if (modelName.includes('2.0')) {
         generationConfig.thinkingConfig = { thinkingBudget: 0 };
       }
@@ -128,6 +194,7 @@ serve(async (req: Request) => {
           body: JSON.stringify({
             systemInstruction,
             contents,
+            tools: TOOL_DECLARATIONS,
             generationConfig
           })
         });
@@ -158,20 +225,23 @@ serve(async (req: Request) => {
     const candidate = aiData.candidates?.[0];
     const resParts = candidate?.content?.parts || [];
     let rawReply = '';
+    let toolCalls: any[] = [];
 
     for (const part of resParts) {
       if (part.text) rawReply += part.text;
+      if (part.functionCall) {
+        toolCalls.push(part.functionCall);
+      }
     }
 
-    // Clean and sanitize response from thoughts, English meta-text, and prompt echo
+    // Clean and sanitize response text
     let cleanReply = cleanAIResponseText(rawReply);
 
-    if (!cleanReply.trim()) {
-      cleanReply = '¡Hola! ¡Qué gusto saludarte! ¿En qué te puedo ayudar hoy?';
-    }
-
     return new Response(
-      JSON.stringify({ reply: cleanReply }),
+      JSON.stringify({
+        reply: cleanReply,
+        toolCalls: toolCalls.length > 0 ? toolCalls : null
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

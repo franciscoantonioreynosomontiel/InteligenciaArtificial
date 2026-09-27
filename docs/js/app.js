@@ -67,10 +67,11 @@ function showThoughtBubble(text, autoHideMs = 3000) {
     thoughtBubbleTimer = null;
   }
 
-  const timeoutDuration = Math.min(autoHideMs || 3000, 3000);
-  thoughtBubbleTimer = setTimeout(() => {
-    hideThoughtBubble();
-  }, timeoutDuration);
+  if (autoHideMs && autoHideMs > 0) {
+    thoughtBubbleTimer = setTimeout(() => {
+      hideThoughtBubble();
+    }, autoHideMs);
+  }
 }
 
 function hideThoughtBubble() {
@@ -503,13 +504,15 @@ function triggerAlarmEvent(rule) {
   // 1. Play sound
   playAlarmAudio(rule);
 
-  // 2. Speak message
-  showThoughtBubble(rule.message || rule.name, 6000);
+  // 2. Speak message & Display in character's thought bubble automatically
+  const spokenMsg = rule.message || rule.name;
+  showThoughtBubble(spokenMsg, 10000);
+
   const chatDrawer = document.getElementById('chat-drawer');
   const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
   const allowVoice = isChatOpen ? chatSpeechEnabled : mainSpeechEnabled;
-  if (allowVoice && rule.message) {
-    speakResponse(rule.message);
+  if (allowVoice && spokenMsg) {
+    speakResponse(spokenMsg);
   }
 
   // 3. Update execution timestamp
@@ -540,10 +543,10 @@ function triggerAlarmEvent(rule) {
     alarmModal.classList.add('active');
   }
 
-  // 5. Trigger Web Notification
+  // 5. Trigger Web Notification (push-like alert from the bot character)
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(rule.type === 'alarma' ? 'Alarma!' : 'Recordatorio!', {
+      new Notification(rule.type === 'alarma' ? '¡Alarma de la IA!' : '¡Recordatorio de la IA!', {
         body: rule.message || rule.name,
         icon: './assets/img/icon-192.png'
       });

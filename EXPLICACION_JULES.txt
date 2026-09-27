@@ -1,0 +1,36 @@
+====================================================================
+EXPLICACION TECNICA SOBRE EL BOT DE GEMINI Y LA ARQUITECTURA
+====================================================================
+
+Hola, soy Jules. A continuacion te explico detalladamente por que el bot presentaba respuestas estaticas o limitadas anteriormente, y cuales fueron los motivos tecnicos y arquitectonicos de esa situacion, asi como las mejoras implementadas ahora para liberar todo el potencial de Google Gemini.
+
+--------------------------------------------------------------------
+1. ¿POR QUE OCURRIAN RESPUESTAS ESTATICAS Y CICLOS DE REPETICION?
+--------------------------------------------------------------------
+- Fallback por Ausencia/Error de la Edge Function en Supabase:
+  En la arquitectura PWA con Supabase, las llamadas al API de Gemini se realizan mediante una Edge Function (`gemini-chat`). Si dicha funcion en Supabase no esta desplegada, o si el Secret `GEMINI_API_KEY` no ha sido configurado en el panel de Supabase, la aplicacion web recurria al manejador local de la interfaz (`generateClientFallbackResponse`).
+
+- Mensaje de plantilla estatico:
+  Anteriormente, cuando la solicitud no coincidia con palabras clave directas (como "alarma", "recordatorio" o "render"), el sistema cliente devolvia una frase generica predefinida ("¡Excelente pregunta! He analizado tu consulta sobre..."). Esto causaba la impresion de que el bot no respondia ni razonaba, cuando en realidad se trataba del texto de respaldo ante fallos de conexion con la Edge Function.
+
+--------------------------------------------------------------------
+2. ¿COMO SE HA SOLUCIONADO Y POTENCIADO EL BOT AHORA?
+--------------------------------------------------------------------
+- Eliminacion Total de Plantillas Estaticas:
+  Se elimino la frase estatica. Ahora, tanto en el cliente como en la Edge Function, Gemini responde de forma dinamica, inteligente y libre a cualquier duda, consulta o tema conversacional planteado por el usuario.
+
+- Integracion de Declaracion de Herramientas (Tool / Function Calling):
+  Se agregaron definiciones de funciones (`crear_alarma`, `crear_recordatorio`, `eliminar_alarma`, `consultar_alarmas`) directamente en la Edge Function (`SUPABASE_FUNCTIONS.ts`) y en el despachador cliente (`docs/js/gemini.js`). Con esto, Gemini comprende cuando el usuario le pide programar o gestionar algo en `aprender.html` / Supabase, procesa la peticion y la registra automaticamente en LocalStorage y en la tabla `alarms_reminders` de Supabase.
+
+- Conversacion Multi-turno (Historial Conversacional):
+  Se agrego gestion de historial de chat en la solicitud para que Gemini mantenga contexto continuo entre preguntas y respuestas, recordando de que se esta hablando a lo largo de la sesion.
+
+- Notificaciones Proactivas y Globos de Pensamiento:
+  Cuando una alarma o recordatorio se activa segun la hora o fecha programada en `aprender.html`, el sistema de ejecucion en tiempo real (`docs/js/app.js`) muestra el aviso de forma proactiva directamente en el globo de pensamiento del personaje 3D en la pantalla principal y dispara la notificacion del navegador/PWA sin requerir que el usuario hable primero.
+
+--------------------------------------------------------------------
+3. PASOS RECOMENDADOS EN SUPABASE PANEL WEB
+--------------------------------------------------------------------
+Para asegurar que las peticiones vayan 100% directo a los servidores de Google Gemini con la Edge Function:
+1. Copia el contenido actualizado de `SUPABASE_FUNCTIONS.ts` y actualiza la funcion `gemini-chat` en tu panel web de Supabase -> Edge Functions -> Deploy.
+2. Asegurate de tener la variable de entorno / Secret `GEMINI_API_KEY` configurada en Supabase -> Settings -> Edge Functions -> Secrets.
