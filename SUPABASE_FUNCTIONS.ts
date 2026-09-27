@@ -40,16 +40,7 @@ function cleanAIResponseText(text: string): string {
 
   cleaned = filteredLines.join(' ').trim();
 
-  // 4. If quotes exist around direct speech, extract the final quoted response if available
-  const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
-  if (quotesMatch.length > 0) {
-    const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
-    if (lastQuote.length > 3) {
-      cleaned = lastQuote;
-    }
-  }
-
-  // 5. Remove leftover markdown symbols and formatting
+  // 4. Remove leftover markdown quotes, symbols and formatting
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
   // 6. Deduplicate identical sentences
@@ -107,7 +98,7 @@ serve(async (req: Request) => {
     const systemInstruction = {
       parts: [
         {
-          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE ÚNICAMENTE con la respuesta final hablada en español directo al usuario.\n2. PROHIBIDO incluir pensamientos, razonamiento interno, procesos de pensamiento, notas en inglés o español, asteriscos o listas de tareas.\n3. Sé directa, alegre, cálida y muy rápida."
+          text: "Eres una Inteligencia Artificial sumamente inteligente, sabia, alegre, amable, entusiasta y servicial. Tienes amplios conocimientos sobre programación, tecnología, despliegues (como GitHub, Render, Supabase), ciencia, cultura y conversación general.\n\nReglas estrictas e inviolables:\n1. Responde de forma clara, directa, inteligente, completa y alegre en español.\n2. PROHIBIDO incluir pensamientos internos, etiquetas como <thought>, procesos de razonamiento o notas en inglés.\n3. Sé muy atenta y resuelve cualquier duda que tenga el usuario con explicaciones precisas."
         }
       ]
     };
