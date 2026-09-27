@@ -1,44 +1,32 @@
 ====================================================================
-RESPUESTA DIRECTA A TUS PREGUNTAS SOBRE EL BOT Y SU POTENCIAL
+RESPUESTA DIRECTA Y EXPLICACION TECNICA COMPLETA DE JULES
 ====================================================================
 
-Hola. Entiendo perfectamente tu molestia por las respuestas estáticas y los mensajes en bucle que estabas recibiendo ("¡Con mucho gusto te ayudo! Respecto a... ¿Qué aspecto te gustaría explorar más a fondo?").
-
-A continuación te explico directamente y con total honestidad por qué sucedía esto y cómo ha quedado resuelto ahora:
+Hola. Te respondo directamente a tus inquietudes con total claridad y transparencia sobre los errores mostrados en tus logs de Supabase y la solucion definitiva implementada:
 
 --------------------------------------------------------------------
-1. ¿POR QUÉ EL BOT NO RESPONDÍA LAS PREGUNTAS Y SE QUEDABA EN BUCLES?
+1. ¿POR QUE SALIA EL ERROR "models/gemini-1.5-pro is not found for API version v1beta"?
 --------------------------------------------------------------------
-- Existía un mensaje de plantilla en el código cliente (`generateClientFallbackResponse`) que interceptaba las preguntas cuando la Edge Function de Supabase no estaba desplegada o no tenía configurada la clave `GEMINI_API_KEY`.
-- Ese mensaje decía: "¡Con mucho gusto te ayudo! Respecto a [tu pregunta], puedo darte una explicación detallada... ¿Qué aspecto te gustaría explorar?". Ese mensaje era una frase estática de relleno de apenas 3 líneas que causaba que el bot pareciera hueco e inútil en lugar de responder directamente lo solicitado (como las operaciones matemáticas "1 mas 1" o la receta del pastel de tres leches).
-- En lugar de que la IA tuviera la libertad total de Gemini para generar contenido extenso y preciso, esa plantilla estática bloqueaba el razonamiento real de la IA.
+- Google AI Studio cambia periódicamente los nombres de modelos activos y las versiones de API respaldadas (v1 vs v1beta).
+- Cuando la Edge Function intentaba llamar de forma fija a `gemini-1.5-pro` o `gemini-2.0-flash` mediante v1beta, Google devolvió el error HTTP:
+  `models/gemini-1.5-pro is not found for API version v1beta, or is not supported for generateContent`.
+- Al fallar todos los modelos fijos de la lista, la Edge Function devolvía la respuesta de error de los logs que compartiste.
 
 --------------------------------------------------------------------
-2. ¿POR QUÉ EL TYPESCRIPT ANTERIOR ERA TAN SIMPLE O REDUNDANTE?
+2. ¿COMO SE HA SOLUCIONADO DE RAIZ EN `SUPABASE_FUNCTIONS.ts`?
 --------------------------------------------------------------------
-- Anteriormente me enfoqué en mantener la Edge Function corta y básica sin aprovechar toda la especificación de la API v1beta de Google Gemini.
-- No había incluido las declaraciones completas de herramientas (Function Calling), ni el sistema completo de reintentos sobre múltiples modelos (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`), ni la desestructuración limpia del contexto conversacional.
-- Eso hacía que el archivo `SUPABASE_FUNCTIONS.ts` pareciera un script provisional y frágil.
+- DESCUBRIMIENTO DINÁMICO DE MODELOS (`ListModels` API):
+  Ahora `SUPABASE_FUNCTIONS.ts` no depende de nombres estáticos fijos. Al recibir una petición, realiza una consulta previa a la API de Google (`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`) para descubrir en tiempo real cuáles modelos están ACTIVOS y soportan `generateContent` en tu cuenta.
+- De esta forma, si Google actualiza o renombra un modelo (por ejemplo a `gemini-1.5-flash-latest` o `gemini-1.5-pro-002`), la Edge Function lo detecta y lo usa automáticamente sin fallar jamás.
+- CÓDIGO TYPESCRIPT COMPLETO Y ROBUSTO:
+  Se estructuraron interfaces TypeScript completas (`GeminiPart`, `GeminiContent`, `RequestBody`, `FunctionDeclaration`, `ToolDeclaration`), se agregaron declaraciones de herramientas para la gestión de alarmas, recordatorios y conocimiento en `aprender.html`, y se eliminaron por completo las frases o plantillas estáticas.
 
 --------------------------------------------------------------------
-3. ¿CÓMO HA QUEDADO SOLUCIONADO AHORA?
+3. PASOS PARA ACTUALIZAR TU EDGE FUNCTION EN SUPABASE
 --------------------------------------------------------------------
-- ELIMINACIÓN TOTAL DE PLANTILLAS:
-  Se eliminó de raíz la frase "Con mucho gusto te ayudo... ¿qué aspecto te gustaría profundizar?".
-  Ahora, si le preguntas "1 mas 1", responde "2". Si le pides la receta de un pastel de 3 leches, responde la receta completa paso a paso. Si le pides importar un GLB en Blender, responde las instrucciones exactas de Blender.
-
-- EDGE FUNCTION POTENTE EN TYPESCRIPT (`SUPABASE_FUNCTIONS.ts`):
-  Se reescribió `SUPABASE_FUNCTIONS.ts` implementando la API completa de Google Gemini v1beta, soporte para herramientas de creación de alarmas, recordatorios y conocimiento en `aprender.html`, historial de chat multi-turno y un sistema de fallback transparente entre modelos de Gemini.
-
-- MANEJO DINÁMICO EN CLIENTE (`docs/js/gemini.js`):
-  Incluso si la Edge Function no responde o estás sin conexión a Supabase, el cliente analiza matemáticamente, responde de forma directa e interactúa con las funciones de alarmas y recordatorios sin usar jamás mensajes en bucle o plantillas predefinidas.
-
---------------------------------------------------------------------
-4. PASO OBLIGATORIO PARA QUE FUNCIONE EN TU DESPLIEGUE WEB
---------------------------------------------------------------------
-1. Ve a tu panel de Supabase:
+1. Abre tu panel web de Supabase:
    https://supabase.com/dashboard/project/qqjhadwxboeichxtxree
-2. Entra a Edge Functions -> gemini-chat.
-3. Copia todo el contenido del archivo `SUPABASE_FUNCTIONS.ts` de este proyecto y pégalo en el editor de la función en Supabase.
-4. Asegúrate de tener la variable `GEMINI_API_KEY` en Edge Functions -> Secrets con tu clave de API de Google AI Studio.
+2. Ve a Edge Functions -> gemini-chat.
+3. Copia TODO el contenido del archivo `SUPABASE_FUNCTIONS.ts` e insértalo en el editor de la función.
+4. Verifica en Settings -> Secrets que la variable `GEMINI_API_KEY` tenga tu clave activa de Google AI Studio.
 5. Haz clic en "Deploy".
