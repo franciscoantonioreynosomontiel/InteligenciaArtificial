@@ -1,25 +1,30 @@
 // ====================================================================
 // SUPABASE EDGE FUNCTION PARA GEMINI AI (gemini-chat/index.ts)
 // ====================================================================
+// Esta funcion es el nucleo inteligente del asistente virtual Sara.
+// Gestiona peticiones a Google Gemini v1beta, herramientas (Function Calling),
+// historial conversacional multi-turno, analisis multimodal de imagenes
+// y estructuracion de datos para almacenamiento en Supabase.
+// ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
+// Limpieza estricta de textos devueltos por la IA
 function cleanAIResponseText(text: string): string {
   if (!text) return '';
   let cleaned = text;
 
-  // 1. Remove thinking blocks if present (e.g., <thought>...</thought> or <think>...</think>)
+  // 1. Eliminar bloques de pensamiento o razonamiento interno
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
-
-  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes or multiline blocks
   cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
-  // 3. Remove meta-headers and bullet thought lists
+  // 2. Eliminar metadatos en ingles o viñetas de depuracion
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter(line => {
     const trimmed = line.trim();
@@ -38,71 +43,75 @@ function cleanAIResponseText(text: string): string {
     return true;
   });
 
-  cleaned = filteredLines.join(' ').trim();
+  cleaned = filteredLines.join('\n').trim();
 
-  // 4. Remove leftover markdown quotes and formatting symbols
-  cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
+  // 3. Eliminar caracteres excesivos de formato markdown manteniéndolo legible
+  cleaned = cleaned.replace(/[*_~`#]/g, '').trim();
 
-  // 5. Deduplicate identical sentences
-  const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
-  const uniqueSentences: string[] = [];
-  for (const sentence of sentences) {
-    if (!uniqueSentences.includes(sentence)) {
-      uniqueSentences.push(sentence);
-    }
-  }
-
-  return uniqueSentences.join(' ').trim() || cleaned;
+  return cleaned;
 }
 
+// Declaraciones formales de herramientas (Function Calling) para Gemini
 const TOOL_DECLARATIONS = [
   {
     functionDeclarations: [
       {
         name: "crear_alarma",
-        description: "Crea o programa una nueva alarma para el usuario.",
+        description: "Crea y programa una nueva alarma en el sistema para una hora y fecha especifica.",
         parameters: {
           type: "OBJECT",
           properties: {
-            nombre: { type: "STRING", description: "Nombre o titulo de la alarma" },
-            hora: { type: "STRING", description: "Hora de la alarma en formato HH:MM (24 horas)" },
-            fecha: { type: "STRING", description: "Fecha en formato YYYY-MM-DD si aplica" },
-            mensaje: { type: "STRING", description: "Mensaje que hablara la IA al sonar la alarma" }
+            nombre: { type: "STRING", description: "Titulo o identificador de la alarma" },
+            hora: { type: "STRING", description: "Hora exacta en formato 24h (HH:MM)" },
+            fecha: { type: "STRING", description: "Fecha opcional en formato YYYY-MM-DD" },
+            mensaje: { type: "STRING", description: "Mensaje hablado que la IA dira cuando suene la alarma" }
           },
           required: ["nombre", "hora"]
         }
       },
       {
         name: "crear_recordatorio",
-        description: "Crea o programa un nuevo recordatorio para el usuario.",
+        description: "Crea y guarda un recordatorio para el usuario Sara.",
         parameters: {
           type: "OBJECT",
           properties: {
-            nombre: { type: "STRING", description: "Nombre o asunto del recordatorio" },
-            hora: { type: "STRING", description: "Hora en formato HH:MM (24 horas)" },
-            fecha: { type: "STRING", description: "Fecha en formato YYYY-MM-DD" },
-            mensaje: { type: "STRING", description: "Mensaje que la IA dira como recordatorio" }
+            nombre: { type: "STRING", description: "Asunto o titulo del recordatorio" },
+            hora: { type: "STRING", description: "Hora de ejecucion (HH:MM)" },
+            fecha: { type: "STRING", description: "Fecha de ejecucion (YYYY-MM-DD)" },
+            mensaje: { type: "STRING", description: "Mensaje descriptivo que la IA hablara" }
           },
           required: ["nombre", "hora"]
         }
       },
       {
         name: "eliminar_alarma",
-        description: "Elimina una alarma o recordatorio programado.",
+        description: "Elimina una alarma o recordatorio existente buscando por su nombre.",
         parameters: {
           type: "OBJECT",
           properties: {
-            nombre: { type: "STRING", description: "Nombre de la alarma o recordatorio a eliminar" }
+            nombre: { type: "STRING", description: "Nombre de la alarma o recordatorio a borrar" }
           },
           required: ["nombre"]
         }
       },
       {
         name: "consultar_alarmas",
-        description: "Consulta las alarmas y recordatorios actualmente programados.",
+        description: "Consulta y lista todas las alarmas y recordatorios actualmente activos o guardados.",
         parameters: {
           type: "OBJECT",
           properties: {}
+        }
+      },
+      {
+        name: "crear_conocimiento_faq",
+        description: "Guarda una nueva entrada de conocimiento o FAQ en aprender.html.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            titulo: { type: "STRING", description: "Titulo del conocimiento o pregunta FAQ" },
+            contenido: { type: "STRING", description: "Explicacion, respuesta o contenido detallado" }
+          },
+          required: ["titulo", "contenido"]
         }
       }
     ]
@@ -116,35 +125,47 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { prompt, message, history, image, image_url } = body;
-    const userPrompt = prompt || message || 'Hola';
+    const { prompt, message, history, image, image_url, knowledge_context } = body;
+    const userPrompt = (prompt || message || 'Hola').trim();
 
-    const apiKey = (Deno.env.get('GEMINI_API_KEY') || Deno.env.get('OPENAI_API_KEY') || '').trim();
+    // Obtencion de la API Key de Google Gemini desde Secrets de Supabase
+    const apiKey = (
+      Deno.env.get('GEMINI_API_KEY') ||
+      Deno.env.get('OPENAI_API_KEY') ||
+      ''
+    ).trim();
 
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ reply: 'Error: No se encontró la API Key de Gemini en los Secrets (GEMINI_API_KEY o OPENAI_API_KEY).' }),
+        JSON.stringify({
+          reply: 'Error: No se encontró la clave de API de Gemini en los Secrets de Supabase (GEMINI_API_KEY). Configúrala en el panel de Supabase -> Project Settings -> Edge Functions -> Secrets.'
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Direct model selection (flash 2.0 first, then 1.5 flash, then 1.5 pro)
-    const availableModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    // Lista jerarquica de modelos Gemini a probar prioritariamente
+    const availableModels = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro'
+    ];
 
-    // 2. Preparar el contenido (historial conversacional + texto e imagen base64 si aplica)
+    // Construccion de la conversacion multi-turno
     const contents: Array<{ role: string; parts: Array<any> }> = [];
 
     if (Array.isArray(history) && history.length > 0) {
       for (const turn of history) {
-        if (turn.role && turn.content) {
+        if (turn && turn.role && turn.content) {
           contents.push({
             role: turn.role === 'user' ? 'user' : 'model',
-            parts: [{ text: turn.content }]
+            parts: [{ text: String(turn.content) }]
           });
         }
       }
     }
 
+    // Parte actual con imagen multimodal si existe
     const currentParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
     const rawImageData = image || image_url;
@@ -162,19 +183,30 @@ serve(async (req: Request) => {
     currentParts.push({ text: userPrompt });
     contents.push({ role: 'user', parts: currentParts });
 
+    // Contexto del sistema e instrucciones principales
     const systemInstruction = {
       parts: [
         {
-          text: "Eres una Inteligencia Artificial sumamente inteligente, sabia, alegre, amable, entusiasta y servicial creada para interactuar con el usuario Sara. Posees conocimientos completos y profundos sobre programacion, ciencia, tecnologia, matematicas, cultura, conversacion general y gestion de tareas.\n\nReglas estrictas e inviolables:\n1. Responde a CUALQUIER pregunta, duda o tema que el usuario plantee de forma clara, natural, inteligente y alegre en espanol. NUNCA respondas con frases estaticas o predefinidas.\n2. Mantén conversaciones fluidas y contextuales de forma dinamica e inteligente.\n3. Si el usuario te pide crear, eliminar o consultar alarmas o recordatorios, invoca la herramienta correspondiente (crear_alarma, crear_recordatorio, eliminar_alarma, consultar_alarmas) o indica la accion para que el sistema la registre en aprender.html y en la base de datos.\n4. PROHIBIDO incluir pensamientos internos, etiquetas <thought>, procesos de razonamiento ni notas en ingles."
+          text: `Eres Sara, una Inteligencia Artificial sumamente potente, sabia, brillante, alegre y servicial. Tienes dominio total y profundo en matemáticas, física, programación, ciencias, cocina, modelado 3D, desarrollo web, desplegar repositorios y conversación general.
+
+REGLAS OBLIGATORIAS:
+1. Responde SIEMPRE de forma directa, completa, inteligente y exacta a la pregunta o consulta realizada por el usuario.
+2. Si el usuario te hace una pregunta matemática (por ejemplo "1 mas 1"), responde el resultado matemático directo con su explicación breve o exacta.
+3. Si te pide explicaciones de recetas, guías paso a paso o tutoriales (por ejemplo un pastel de 3 leches o importar GLB a Blender), entrega la receta completa o los pasos exactos explicados punto por punto.
+4. NUNCA respondas con frases plantilla como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE LA PREGUNTA DE UNA VEZ DE FORMA COMPLETA.
+5. Si el usuario te pide crear una alarma, recordatorio o guardar un conocimiento, usa la herramienta adecuada de function calling o especifica la acción.
+6. Habla en español de forma fluida, clara y agradable. PROHIBIDO incluir reflexiones internas, etiquetas de pensamiento o notas en inglés.
+
+${knowledge_context ? `[Base de Conocimiento Actualizada]:\n${knowledge_context}` : ''}`
         }
       ]
     };
 
-    // 3. Probar con los modelos
     let geminiRes: Response | null = null;
     let aiData: any = null;
     let lastApiError: string = '';
 
+    // Intento recursivo sobre los modelos disponibles de Gemini
     for (const modelName of availableModels) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
@@ -206,18 +238,19 @@ serve(async (req: Request) => {
           break;
         } else if (data.error && data.error.message) {
           lastApiError = `[${modelName}] ${data.error.message}`;
-          console.warn(`Error en modelo ${modelName}:`, data.error.message);
+          console.warn(`Error llamando a ${modelName}:`, data.error.message);
         }
       } catch (e: any) {
         lastApiError = `[${modelName}] ${e.message}`;
-        console.warn(`Exception llamando a modelo ${modelName}:`, e);
+        console.warn(`Excepcion con ${modelName}:`, e);
       }
     }
 
     if (!geminiRes || !aiData) {
-      const detailedErr = lastApiError ? ` Detalles: ${lastApiError}` : '';
       return new Response(
-        JSON.stringify({ reply: `Error al comunicarse con la IA de Google Gemini. Verifica tu API Key y permisos de modelo.${detailedErr}` }),
+        JSON.stringify({
+          reply: `No se pudo obtener respuesta de Google Gemini. Verifica la API Key en los Secrets de Supabase. Detalle: ${lastApiError}`
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -234,8 +267,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // Clean and sanitize response text
-    let cleanReply = cleanAIResponseText(rawReply);
+    const cleanReply = cleanAIResponseText(rawReply);
 
     return new Response(
       JSON.stringify({
@@ -247,7 +279,7 @@ serve(async (req: Request) => {
 
   } catch (error: any) {
     return new Response(
-      JSON.stringify({ reply: 'Error interno: ' + error.message }),
+      JSON.stringify({ reply: 'Error interno en la Edge Function: ' + error.message }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
