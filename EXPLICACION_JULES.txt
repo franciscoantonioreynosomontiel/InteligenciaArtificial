@@ -2,7 +2,7 @@
 RESPUESTA DIRECTA Y EXPLICACION TECNICA COMPLETA DE JULES
 ====================================================================
 
-Hola. Te respondo directamente a tus inquietudes con total claridad y transparencia sobre los errores mostrados en tus logs de Supabase y la solucion definitiva implementada:
+Hola. Te respondo directamente a tus inquietudes con total claridad y transparencia sobre los errores mostrados en tus logs de Supabase, la fuga de texto de borrador/pensamiento y la solucion definitiva implementada:
 
 --------------------------------------------------------------------
 1. ¿POR QUE SALIA EL ERROR "models/gemini-1.5-pro is not found for API version v1beta"?
@@ -13,7 +13,17 @@ Hola. Te respondo directamente a tus inquietudes con total claridad y transparen
 - Al fallar todos los modelos fijos de la lista, la Edge Function devolvía la respuesta de error de los logs que compartiste.
 
 --------------------------------------------------------------------
-2. ¿COMO SE HA SOLUCIONADO DE RAIZ EN `SUPABASE_FUNCTIONS.ts`?
+2. ¿POR QUE EL MODELO EMITIO BLOQUES DE PENSAMIENTO EN INGLES (Question 1, Knowledge areas, Self-Correction)?
+--------------------------------------------------------------------
+- Algunos modelos de Gemini (especialmente versiones experimentales o modelos con capacidad de razonamiento) generan un "Thinking Process" (proceso de borrador/desglose) interno antes de emitir la respuesta final.
+- Si el System Prompt o la configuración del modelo no restringe explícitamente el "thinkingBudget" o no filtra los bloques de borrador, el texto intermedio del modelo se filtra directamente en la propiedad `text` recibida.
+- Para solucionar esto de forma permanente:
+  a) En `SUPABASE_FUNCTIONS.ts` se configuró `thinkingConfig: { thinkingBudget: 0 }` en la llamada de generación para indicarle a la API que no emita desglose de pensamientos.
+  b) Se reforzó el System Prompt con reglas absolutas e imperativas indicando que se prohíbe terminantemente emitir notas de razonamiento, traducciones o desgloses.
+  c) Se implementó la función de sanitización estricta (`sanitizeAIResponse` y `cleanAIResponseText`) con expresiones regulares multilínea que detectan y purgan automáticamente cualquier bloque de borrador ("Question 1:", "Knowledge areas:", "Steps:", "Self-correction:", etc.).
+
+--------------------------------------------------------------------
+3. ¿COMO SE HA SOLUCIONADO DE RAIZ EN `SUPABASE_FUNCTIONS.ts` Y `gemini.js`?
 --------------------------------------------------------------------
 - DESCUBRIMIENTO DINÁMICO DE MODELOS (`ListModels` API):
   Ahora `SUPABASE_FUNCTIONS.ts` no depende de nombres estáticos fijos. Al recibir una petición, realiza una consulta previa a la API de Google (`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`) para descubrir en tiempo real cuáles modelos están ACTIVOS y soportan `generateContent` en tu cuenta.
@@ -22,7 +32,7 @@ Hola. Te respondo directamente a tus inquietudes con total claridad y transparen
   Se estructuraron interfaces TypeScript completas (`GeminiPart`, `GeminiContent`, `RequestBody`, `FunctionDeclaration`, `ToolDeclaration`), se agregaron declaraciones de herramientas para la gestión de alarmas, recordatorios y conocimiento en `aprender.html`, y se eliminaron por completo las frases o plantillas estáticas.
 
 --------------------------------------------------------------------
-3. PASOS PARA ACTUALIZAR TU EDGE FUNCTION EN SUPABASE
+4. PASOS PARA ACTUALIZAR TU EDGE FUNCTION EN SUPABASE
 --------------------------------------------------------------------
 1. Abre tu panel web de Supabase:
    https://supabase.com/dashboard/project/qqjhadwxboeichxtxree

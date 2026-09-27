@@ -8,6 +8,7 @@
 // 3. Conversacion fluida de varios turnos (multi-turn history).
 // 4. Analisis de imagenes multimodal (vision).
 // 5. Manejo avanzado de errores y reintentos automatizados sin frases estaticas.
+// 6. Filtrado y sanitizacion estricta para eliminar borradores o procesos de pensamiento interno.
 // ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -70,25 +71,33 @@ function sanitizeAIResponse(text: string): string {
   if (!text) return '';
   let clean = text;
 
-  // 1. Eliminar bloques <thought> o <think> si el modelo los genera
+  // 1. Eliminar bloques de pensamiento o borradores <thought> o <think>
   clean = clean.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Eliminar prefijos de razonamiento o etiquetas internas
+  // 2. Eliminar secciones de desglose de preguntas, borradores en ingles o razonamientos
+  clean = clean.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:|\"como se hace|\"how to make)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
+
+  // 3. Eliminar prefijos de razonamiento o etiquetas internas
   clean = clean.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
-  // 3. Filtrar lineas de metadatos o viñetas internas en ingles
+  // 4. Filtrar lineas de metadatos o viñetas internas en ingles
   const lines = clean.split('\n');
   const filtered = lines.filter(line => {
     const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
     if (trimmed.startsWith('*') && (
-      trimmed.toLowerCase().includes('user input') ||
-      trimmed.toLowerCase().includes('persona') ||
-      trimmed.toLowerCase().includes('constraint') ||
-      trimmed.toLowerCase().includes('thought') ||
-      trimmed.toLowerCase().includes('direct answer') ||
-      trimmed.toLowerCase().includes('reasoning') ||
-      trimmed.toLowerCase().includes('pensamiento') ||
-      trimmed.toLowerCase().includes('spanish')
+      lower.includes('user input') ||
+      lower.includes('persona') ||
+      lower.includes('constraint') ||
+      lower.includes('thought') ||
+      lower.includes('direct answer') ||
+      lower.includes('reasoning') ||
+      lower.includes('pensamiento') ||
+      lower.includes('spanish') ||
+      lower.includes('knowledge areas') ||
+      lower.includes('step-by-step instructions') ||
+      lower.includes('sponge') ||
+      lower.includes('tres leches')
     )) {
       return false;
     }
@@ -97,7 +106,7 @@ function sanitizeAIResponse(text: string): string {
 
   clean = filtered.join('\n').trim();
 
-  // 4. Limpiar formato sobrante de markdown
+  // 5. Limpiar formato sobrante de markdown
   clean = clean.replace(/[*_~`#]/g, '').trim();
 
   return clean;
@@ -184,7 +193,6 @@ async function discoverAvailableGeminiModels(apiKey: string): Promise<string[]> 
         if (data && Array.isArray(data.models)) {
           for (const m of data.models) {
             if (m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')) {
-              // Extraer nombre del modelo (ej: "models/gemini-1.5-flash-latest" -> "gemini-1.5-flash-latest")
               const nameOnly = m.name.replace(/^models\//, '');
               if (!foundModels.includes(nameOnly)) {
                 foundModels.push(nameOnly);
@@ -198,7 +206,6 @@ async function discoverAvailableGeminiModels(apiKey: string): Promise<string[]> 
     }
   }
 
-  // Si no se pudo listar por permisos, devolver lista jerarquica con sufijos -latest / -001
   if (foundModels.length === 0) {
     return [
       'gemini-1.5-flash-latest',
@@ -238,10 +245,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Descubrimiento automatico de modelos activos
     const candidateModels = await discoverAvailableGeminiModels(apiKey);
-
-    // 2. Construcción de los contenidos
     const contents: GeminiContent[] = [];
 
     if (Array.isArray(history) && history.length > 0) {
@@ -272,20 +276,19 @@ serve(async (req: Request) => {
     currentParts.push({ text: userPrompt });
     contents.push({ role: 'user', parts: currentParts });
 
-    // 3. Definicion del prompt de sistema
     const systemInstruction = {
       parts: [
         {
           text: `Eres Sara, un asistente de Inteligencia Artificial extraordinariamente inteligente, capaz, brillante, alegre y atenta.
 Tienes conocimientos amplios y profundos sobre programación, matemáticas, física, tecnología, cocina, ciencias, modelado 3D (Blender, GLB/GLTF), desarrollo web y conversación general.
 
-INSTRUCCIONES CLAVE:
-1. Responde a CUALQUIER pregunta de forma directa, inteligente, clara y completa en español.
-2. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
-3. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), da la guía completa paso a paso con todos sus detalles.
-4. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
-5. Si el usuario te pide programar una alarma, recordatorio o guardar un tema, invoca la herramienta adecuada de function calling.
-6. Manten un tono positivo, alegre y respetuoso en español.`
+REGLAS ABSOLUTAS E IMPERATIVAS:
+1. Responde UNICAMENTE con la respuesta final directa y clara en español.
+2. Queda STRICTAMENTE PROHIBIDO incluir pensamientos internos, notas de razonamiento, traducciones al inglés, borradores de pasos, desgloses de preguntas o metacomentarios.
+3. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
+4. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), entrega la guía completa paso a paso con todos sus detalles directamente en español sin prefijos ni borradores.
+5. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
+6. Si el usuario te pide programar una alarma, recordatorio o guardar un tema, invoca la herramienta adecuada de function calling.`
         }
       ]
     };
@@ -294,14 +297,16 @@ INSTRUCCIONES CLAVE:
     let aiData: any = null;
     let lastApiError: string = '';
 
-    // 4. Bucle inteligente de prueba entre modelos encontrados
     for (const modelName of candidateModels) {
       const apiVersion = modelName.includes('2.0') ? 'v1beta' : 'v1beta';
       const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`;
 
       const generationConfig: Record<string, any> = {
         temperature: 0.7,
-        maxOutputTokens: 2048
+        maxOutputTokens: 2048,
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
       };
 
       try {

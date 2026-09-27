@@ -263,23 +263,31 @@ export function cleanAIResponseText(text) {
   // 1. Remove thinking blocks
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes
+  // 2. Remove draft breakdown / question decomposition blocks
+  cleaned = cleaned.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:|\"como se hace|\"how to make)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
+
+  // 3. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes
   cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
-  // 3. Remove meta-headers
+  // 4. Remove meta-headers
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter((line) => {
     const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
     if (
       trimmed.startsWith('*') &&
-      (trimmed.toLowerCase().includes('user input') ||
-        trimmed.toLowerCase().includes('persona') ||
-        trimmed.toLowerCase().includes('constraint') ||
-        trimmed.toLowerCase().includes('thought') ||
-        trimmed.toLowerCase().includes('direct answer') ||
-        trimmed.toLowerCase().includes('reasoning') ||
-        trimmed.toLowerCase().includes('pensamiento') ||
-        trimmed.toLowerCase().includes('spanish'))
+      (lower.includes('user input') ||
+        lower.includes('persona') ||
+        lower.includes('constraint') ||
+        lower.includes('thought') ||
+        lower.includes('direct answer') ||
+        lower.includes('reasoning') ||
+        lower.includes('pensamiento') ||
+        lower.includes('spanish') ||
+        lower.includes('knowledge areas') ||
+        lower.includes('step-by-step instructions') ||
+        lower.includes('sponge') ||
+        lower.includes('tres leches'))
     ) {
       return false;
     }
@@ -288,7 +296,7 @@ export function cleanAIResponseText(text) {
 
   cleaned = filteredLines.join('\n').trim();
 
-  // 4. Remove leftover markdown quotes and formatting
+  // 5. Remove leftover markdown quotes and formatting
   cleaned = cleaned.replace(/[*_~`#]/g, '').trim();
 
   return cleaned;
