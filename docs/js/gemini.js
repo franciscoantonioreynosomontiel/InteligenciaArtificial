@@ -1,9 +1,11 @@
 // Gemini AI Integration & Supabase Edge Function Handler
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
 const EDGE_FUNCTION_NAME = 'gemini-chat';
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 
 function getStoredKnowledgePrompt() {
@@ -44,6 +46,58 @@ function getStoredAlarmsPrompt() {
   }
 }
 
+async function syncAlarmToSupabase(item) {
+  try {
+    const { data, error } = await supabase.from('alarms_reminders').insert([{
+      type: item.type,
+      name: item.name,
+      message: item.message,
+      schedule_mode: item.scheduleMode,
+      days: item.days,
+      specific_date: item.date,
+      time: item.time,
+      timezone: item.timezone || 'local',
+      use_range: item.useRange || false,
+      range_start: item.rangeStart || null,
+      range_end: item.rangeEnd || null,
+      range_limit: item.rangeLimit || 1,
+      voice: item.voice || 'default',
+      sound: item.sound || 'Predeterminado',
+      sound_url: item.soundUrl || null,
+      volume: item.volume || 0.8,
+      repeat: item.repeat !== undefined ? item.repeat : true,
+      repeat_interval: item.repeatInterval || 5,
+      max_repeats: item.maxRepeats || 3,
+      interaction: item.interaction || 'button',
+      active: item.active !== false
+    }]).select();
+
+    if (!error && data && data[0]) {
+      item.db_id = data[0].id;
+      // Update local storage item with db_id
+      const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
+      if (raw) {
+        let items = JSON.parse(raw);
+        const idx = items.findIndex((i) => i.id === item.id);
+        if (idx !== -1) {
+          items[idx].db_id = data[0].id;
+          localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not sync created alarm/reminder to Supabase:', e);
+  }
+}
+
+async function syncDeleteAlarmFromSupabase(query) {
+  try {
+    await supabase.from('alarms_reminders').delete().ilike('name', `%${query}%`);
+  } catch (e) {
+    console.warn('Could not sync deleted alarm/reminder to Supabase:', e);
+  }
+}
+
 // Tool Execution Dispatcher for Alarms & Reminders
 export function executeAlarmTool(toolName, args) {
   const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
@@ -77,6 +131,7 @@ export function executeAlarmTool(toolName, args) {
       };
       items.push(newAlarm);
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
+      syncAlarmToSupabase(newAlarm);
       return `Alarma "${newAlarm.name}" configurada exitosamente para las ${newAlarm.time}.`;
     }
 
@@ -108,6 +163,7 @@ export function executeAlarmTool(toolName, args) {
       };
       items.push(newReminder);
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
+      syncAlarmToSupabase(newReminder);
       return `Recordatorio "${newReminder.name}" creado exitosamente.`;
     }
 
@@ -118,6 +174,7 @@ export function executeAlarmTool(toolName, args) {
       items = items.filter((item) => item.id !== args.id && !item.name.toLowerCase().includes(query));
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
       if (items.length < initialCount) {
+        syncDeleteAlarmFromSupabase(query);
         return `Se elimino la regla/alarma especificada.`;
       }
       return `No se encontro la alarma o recordatorio "${query}".`;
@@ -165,7 +222,10 @@ export function cleanAIResponseText(text) {
   // 1. Remove thinking blocks if present
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Remove meta-headers and bullet thought lists
+  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes or multiline blocks
+  cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
+
+  // 3. Remove meta-headers and bullet thought lists
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter((line) => {
     const trimmed = line.trim();
@@ -177,6 +237,7 @@ export function cleanAIResponseText(text) {
         trimmed.toLowerCase().includes('thought') ||
         trimmed.toLowerCase().includes('direct answer') ||
         trimmed.toLowerCase().includes('reasoning') ||
+        trimmed.toLowerCase().includes('pensamiento') ||
         trimmed.toLowerCase().includes('spanish'))
     ) {
       return false;
@@ -186,7 +247,7 @@ export function cleanAIResponseText(text) {
 
   cleaned = filteredLines.join(' ').trim();
 
-  // 3. If quotes exist around direct speech, extract the final quoted response if available
+  // 4. If quotes exist around direct speech, extract the final quoted response if available
   const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
   if (quotesMatch.length > 0) {
     const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
@@ -195,10 +256,10 @@ export function cleanAIResponseText(text) {
     }
   }
 
-  // 4. Remove leftover markdown symbols and formatting
+  // 5. Remove leftover markdown symbols and formatting
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 5. Deduplicate identical sentences
+  // 6. Deduplicate identical sentences
   const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map((s) => s.trim()).filter(Boolean);
   const uniqueSentences = [];
   for (const sentence of sentences) {

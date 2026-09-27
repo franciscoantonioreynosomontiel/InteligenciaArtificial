@@ -16,7 +16,10 @@ function cleanAIResponseText(text: string): string {
   // 1. Remove thinking blocks if present (e.g., <thought>...</thought> or <think>...</think>)
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Remove meta-headers and bullet thought lists (e.g., * User input, * Thinking, * Direct answer, etc.)
+  // 2. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes or multiline blocks
+  cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
+
+  // 3. Remove meta-headers and bullet thought lists (e.g., * User input, * Thinking, * Direct answer, etc.)
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter(line => {
     const trimmed = line.trim();
@@ -27,6 +30,7 @@ function cleanAIResponseText(text: string): string {
       trimmed.toLowerCase().includes('thought') ||
       trimmed.toLowerCase().includes('direct answer') ||
       trimmed.toLowerCase().includes('reasoning') ||
+      trimmed.toLowerCase().includes('pensamiento') ||
       trimmed.toLowerCase().includes('spanish')
     )) {
       return false;
@@ -36,7 +40,7 @@ function cleanAIResponseText(text: string): string {
 
   cleaned = filteredLines.join(' ').trim();
 
-  // 3. If quotes exist around direct speech, extract the final quoted response if available
+  // 4. If quotes exist around direct speech, extract the final quoted response if available
   const quotesMatch = [...cleaned.matchAll(/"([^"\n\r]{3,})"/g)];
   if (quotesMatch.length > 0) {
     const lastQuote = quotesMatch[quotesMatch.length - 1][1].trim();
@@ -45,10 +49,10 @@ function cleanAIResponseText(text: string): string {
     }
   }
 
-  // 4. Remove leftover markdown symbols and formatting
+  // 5. Remove leftover markdown symbols and formatting
   cleaned = cleaned.replace(/[*_~`#"]/g, '').trim();
 
-  // 5. Deduplicate identical sentences
+  // 6. Deduplicate identical sentences
   const sentences = cleaned.split(/(?<=[.!?¡¿])\s+/).map(s => s.trim()).filter(Boolean);
   const uniqueSentences: string[] = [];
   for (const sentence of sentences) {
@@ -79,8 +83,8 @@ serve(async (req: Request) => {
       );
     }
 
-    // Fast direct model selection (flash first for speed)
-    const availableModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    // Direct model selection (flash 2.0 first, then 1.5 flash, then 1.5 pro)
+    const availableModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
     // 2. Preparar el contenido (texto e imagen base64 si aplica)
     const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
@@ -103,7 +107,7 @@ serve(async (req: Request) => {
     const systemInstruction = {
       parts: [
         {
-          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE ÚNICAMENTE con la respuesta final hablada en español directo al usuario.\n2. PROHIBIDO incluir pensamientos, razonamiento interno, procesos, notas en inglés, asteriscos o listas de tareas.\n3. Sé directa, alegre, cálida y muy rápida."
+          text: "Eres una asistente virtual alegre, amable, entusiasta y muy inteligente. Reglas estrictas e inviolables:\n1. Responde SIEMPRE ÚNICAMENTE con la respuesta final hablada en español directo al usuario.\n2. PROHIBIDO incluir pensamientos, razonamiento interno, procesos de pensamiento, notas en inglés o español, asteriscos o listas de tareas.\n3. Sé directa, alegre, cálida y muy rápida."
         }
       ]
     };
@@ -111,9 +115,20 @@ serve(async (req: Request) => {
     // 3. Probar con los modelos de manera directa e hiper-rápida
     let geminiRes: Response | null = null;
     let aiData: any = null;
+    let lastApiError: string = '';
 
     for (const modelName of availableModels) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const generationConfig: Record<string, any> = {
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      };
+
+      // Add thinkingConfig only for models supporting thinking budget
+      if (modelName.includes('2.0')) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
 
       try {
         const res = await fetch(geminiUrl, {
@@ -122,10 +137,7 @@ serve(async (req: Request) => {
           body: JSON.stringify({
             systemInstruction,
             contents,
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 250
-            }
+            generationConfig
           })
         });
 
@@ -134,15 +146,20 @@ serve(async (req: Request) => {
           geminiRes = res;
           aiData = data;
           break;
+        } else if (data.error && data.error.message) {
+          lastApiError = `[${modelName}] ${data.error.message}`;
+          console.warn(`Error en modelo ${modelName}:`, data.error.message);
         }
-      } catch (e) {
-        console.warn(`Error llamando a modelo ${modelName}:`, e);
+      } catch (e: any) {
+        lastApiError = `[${modelName}] ${e.message}`;
+        console.warn(`Exception llamando a modelo ${modelName}:`, e);
       }
     }
 
     if (!geminiRes || !aiData) {
+      const detailedErr = lastApiError ? ` Detalles: ${lastApiError}` : '';
       return new Response(
-        JSON.stringify({ reply: 'Error al comunicarse con la IA de Google Gemini. Verifica tu API Key y permisos de modelo.' }),
+        JSON.stringify({ reply: `Error al comunicarse con la IA de Google Gemini. Verifica tu API Key y permisos de modelo.${detailedErr}` }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
