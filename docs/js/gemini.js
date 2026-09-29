@@ -1,5 +1,6 @@
 // Gemini AI Integration & Client Dispatcher
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { refreshCurrentLocationRealtime } from './app.js';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
@@ -9,6 +10,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 const KNOWLEDGE_STORAGE_KEY = 'ia_agent_knowledge';
 const NOTES_STORAGE_KEY = 'ia_agent_notes';
+const CONTACTS_STORAGE_KEY = 'ia_agent_contacts';
 
 // Conversational memory for multi-turn chats
 let chatHistory = [];
@@ -206,12 +208,103 @@ async function syncDeleteAlarmFromSupabase(query) {
   }
 }
 
-// Tool Execution Dispatcher for Alarms, Reminders, Knowledge and Locations
+async function syncContactToSupabase(contact) {
+  try {
+    const { data, error } = await supabase.from('contacts').insert([{
+      name: contact.name,
+      phone: contact.phone
+    }]).select();
+
+    if (!error && data && data[0]) {
+      contact.db_id = data[0].id;
+    }
+  } catch (e) {
+    console.warn('Could not sync contact to Supabase:', e);
+  }
+}
+
+export function getStoredContacts() {
+  const raw = localStorage.getItem(CONTACTS_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveContactLocally(name, phone) {
+  let contacts = getStoredContacts();
+  const newContact = {
+    id: 'cnt_' + Date.now(),
+    name: name.trim(),
+    phone: phone.trim(),
+    createdAt: new Date().toISOString()
+  };
+  contacts.push(newContact);
+  localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(contacts));
+  syncContactToSupabase(newContact);
+  return newContact;
+}
+
+export function downloadVCard(name, phone) {
+  const vcardData = `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\nTEL;TYPE=CELL:${phone}\nEND:VCARD`;
+  const blob = new Blob([vcardData], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name.replace(/\s+/g, '_')}.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Tool Execution Dispatcher for Alarms, Reminders, Knowledge, Locations, and Contacts
 export async function executeAlarmToolAsync(toolName, args) {
   if (toolName === 'consultar_ubicaciones') {
     return await getStoredLocationsPrompt();
   }
+  if (toolName === 'llamar_contacto') {
+    return executeCallContact(args.nombre);
+  }
+  if (toolName === 'guardar_contacto') {
+    return executeSaveContact(args.nombre, args.telefono);
+  }
   return executeAlarmTool(toolName, args);
+}
+
+export function executeCallContact(name) {
+  if (!name) return 'No especificaste a quién llamar.';
+
+  const contacts = getStoredContacts();
+  const searchName = name.toLowerCase().trim();
+  const found = contacts.find((c) => c.name.toLowerCase().includes(searchName));
+
+  if (found && found.phone) {
+    window.location.href = `tel:${found.phone}`;
+    return `Abriendo la aplicación de teléfono para llamar a ${found.name} al número ${found.phone}.`;
+  }
+
+  // Check if Web Contact Picker API is available
+  if ('contacts' in navigator && 'ContactsManager' in window) {
+    navigator.contacts.select(['name', 'tel'], { multiple: false }).then((results) => {
+      if (results && results.length > 0 && results[0].tel && results[0].tel.length > 0) {
+        const phone = results[0].tel[0];
+        window.location.href = `tel:${phone}`;
+      }
+    }).catch((e) => console.warn('Contacts select error:', e));
+    return `Buscando a "${name}" en los contactos de tu dispositivo...`;
+  }
+
+  return `No encontré el número de teléfono guardado para "${name}". Puedes pedirme "guarda a ${name} con el número X" para registrarlo.`;
+}
+
+export function executeSaveContact(name, phone) {
+  if (!name || !phone) return 'Se requiere el nombre y número de teléfono para guardar un contacto.';
+  saveContactLocally(name, phone);
+  downloadVCard(name, phone);
+  return `Contacto "${name}" con número ${phone} guardado exitosamente. Se ha descargado la tarjeta para agregarlo a los contactos de tu dispositivo.`;
 }
 
 export function executeAlarmTool(toolName, args) {
@@ -401,6 +494,11 @@ export function cleanAIResponseText(text) {
 }
 
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
+  const lowerPrompt = (userPrompt || '').toLowerCase();
+  if (lowerPrompt.includes('ubicacion') || lowerPrompt.includes('ubicación') || lowerPrompt.includes('dónde') || lowerPrompt.includes('donde')) {
+    await refreshCurrentLocationRealtime();
+  }
+
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
   const contextNotes = getStoredNotesPrompt();
@@ -476,6 +574,23 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
   if (attachment) {
     return 'He analizado la imagen proporcionada. Muestra un elemento visual que puedo examinar detalladamente. ¿Tienes alguna pregunta específica sobre su contenido o detalles?';
+  }
+
+  // Llamar a contacto por voz
+  if (lower.startsWith('llama a') || lower.startsWith('llamar a') || lower.includes('llama a ') || lower.includes('llamar a ')) {
+    const personName = prompt.replace(/llama a|llamar a|por favor/gi, '').trim();
+    return executeCallContact(personName);
+  }
+
+  // Guardar número en contactos
+  if (lower.includes('guarda') || lower.includes('guardame') || lower.includes('guárdame') || lower.includes('agrega')) {
+    const phoneMatch = prompt.match(/(\+?\d[\d\s\-]{6,14}\d)/);
+    if (phoneMatch) {
+      const phone = phoneMatch[1].replace(/[\s\-]/g, '');
+      let name = prompt.replace(/guarda|guardame|guárdame|este numero|este número|ponle de nombre|ponle|con el nombre|a|el numero|el número|\+?\d[\d\s\-]{6,14}\d/gi, '').trim();
+      if (!name) name = 'Contacto';
+      return executeSaveContact(name, phone);
+    }
   }
 
   // Consulta de ubicación de ambas personas
