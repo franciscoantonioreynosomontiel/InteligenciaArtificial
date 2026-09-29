@@ -125,6 +125,7 @@ async function syncNoteToSupabase(item) {
       title: item.title,
       content: item.content,
       color: item.color || '#fef08a',
+      image_url: item.imageUrl || item.image_url || null,
       width: item.width || 260,
       height: item.height || 260
     }]).select();
@@ -274,8 +275,9 @@ export function executeAlarmTool(toolName, args) {
       const newNote = {
         id: 'note_' + Date.now(),
         title: args.titulo || 'Nueva Nota',
-        content: args.contenido || '',
+        content: args.contenido || args.titulo || '',
         color: args.color || '#fef08a',
+        imageUrl: args.image_url || args.imageUrl || null,
         width: 260,
         height: 260,
         createdAt: new Date().toISOString()
@@ -406,6 +408,9 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
         for (const toolCall of resData.toolCalls) {
           const fnName = toolCall.name;
           const fnArgs = toolCall.args || {};
+          if (fnName === 'crear_nota' && attachmentData) {
+            fnArgs.image_url = fnArgs.image_url || attachmentData.url || attachmentData.base64;
+          }
           const toolRes = executeAlarmTool(fnName, fnArgs);
           toolResultsStr += ` ${toolRes}`;
         }
@@ -501,13 +506,27 @@ function executeDynamicClientAnswer(prompt, attachment) {
 
   // Crear Nota Post-it
   if (lower.includes('nota') || lower.includes('anota') || lower.includes('post-it') || lower.includes('postit')) {
-    let title = prompt.replace(/crea una nota|crear nota|haz una nota|anota|guarda una nota|post-it|postit|nota/gi, '').trim();
-    if (!title) title = 'Nota de Sara';
+    let title = prompt.replace(/crea una nota|crear nota|haz una nota|anota|guarda una nota|post-it|postit|nota|con esta imagen|con esta foto|de esta imagen|de esta foto/gi, '').trim();
+
+    const previousTurnWasPromptingName = chatHistory.length >= 2 &&
+      chatHistory[chatHistory.length - 2].content.toLowerCase().includes('nombre') &&
+      chatHistory[chatHistory.length - 2].content.toLowerCase().includes('nota');
+
+    if (!title || title.length < 2) {
+      if (!previousTurnWasPromptingName) {
+        return '¿Con qué nombre te gustaría guardar tu nota?';
+      } else {
+        title = prompt.trim();
+      }
+    }
+
+    const imgData = attachment ? (attachment.url || attachment.base64) : null;
 
     const noteData = {
       titulo: title,
       contenido: title,
-      color: '#fef08a'
+      color: '#fef08a',
+      image_url: imgData
     };
 
     const result = executeAlarmTool('crear_nota', noteData);

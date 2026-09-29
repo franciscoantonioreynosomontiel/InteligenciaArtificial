@@ -38,6 +38,7 @@ body {
   animation: gradientBG 15s ease infinite;
   color: var(--text-main);
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   overflow: hidden;
   position: relative;
@@ -87,9 +88,9 @@ body {
 /* Header Bar */
 .top-bar {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  right: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
   z-index: 10;
   display: flex;
   justify-content: space-between;
@@ -209,7 +210,7 @@ body {
 /* Bottom Floating Control Bar around 3D canvas */
 .bottom-control-bar {
   position: absolute;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -222,6 +223,7 @@ body {
   border-radius: 40px;
   border: 1px solid var(--card-border);
   box-shadow: var(--glass-shadow);
+  max-width: 92vw;
 }
 
 .btn-main-mic {
@@ -256,6 +258,7 @@ body {
   right: 0;
   bottom: 0;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   max-width: 450px;
   background: rgba(255, 255, 255, 0.96);
@@ -276,12 +279,13 @@ body {
 }
 
 .chat-header {
-  padding: 16px 20px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 16px 20px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--primary-light);
+  flex-shrink: 0;
 }
 
 .chat-header h2 {
@@ -407,11 +411,15 @@ body {
 
 .chat-input-bar {
   padding: 12px 16px;
+  padding-bottom: max(14px, calc(12px + env(safe-area-inset-bottom, 0px)));
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   gap: 8px;
   align-items: center;
   background: white;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .chat-input-bar input {

@@ -1,14 +1,23 @@
-const CACHE_NAME = 'ia-agente-pwa-v1';
+const CACHE_NAME = 'amigo-pwa-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './aprender.html',
+  './notas.html',
+  './alarmas.html',
+  './recordatorios.html',
   './css/styles.css',
   './js/app.js',
   './js/three-scene.js',
   './js/gemini.js',
   './js/cloudinary.js',
   './js/aprender.js',
+  './js/notas.js',
+  './js/alarmas.js',
+  './js/recordatorios.js',
+  './assets/img/logopwa.png',
+  './assets/img/icon-192.png',
+  './assets/img/icon-512.png',
   './manifest.json'
 ];
 

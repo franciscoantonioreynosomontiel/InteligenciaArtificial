@@ -177,12 +177,13 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
       },
       {
         name: "crear_nota",
-        description: "Crea y guarda una nueva nota tipo post-it especificando titulo, contenido opcional y color pastel opcional.",
+        description: "Crea y guarda una nueva nota tipo post-it especificando titulo, contenido opcional, URL o base64 de imagen opcional y color pastel opcional.",
         parameters: {
           type: "OBJECT",
           properties: {
             titulo: { type: "STRING", description: "Titulo o nombre de la nota post-it" },
             contenido: { type: "STRING", description: "Texto o detalles anotados en el post-it" },
+            image_url: { type: "STRING", description: "URL o Base64 de la imagen adjunta opcional" },
             color: { type: "STRING", description: "Color pastel opcional (#fef08a, #fbcfe8, #bae6fd, #bbf7d0, #e9d5ff)" }
           },
           required: ["titulo"]
