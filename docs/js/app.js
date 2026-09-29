@@ -2,7 +2,6 @@
 import { Scene3D } from './three-scene.js';
 import { processGeminiRequest, formulateAIReminderMessage } from './gemini.js';
 import { uploadToCloudinary } from './cloudinary.js';
-import { RealtimeTranslator } from './traductor.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
@@ -94,11 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Start Real-time Alarm Execution Engine
   initAlarmExecutionEngine();
 
-  // 6. Initialize Real-Time Translator Module
-  const translator = new RealtimeTranslator();
-  translator.init();
-
-  // 7. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
+  // 6. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
   showThoughtBubble('¡Hola Sara! ¿En qué te puedo ayudar hoy?', 3000);
 });
 
