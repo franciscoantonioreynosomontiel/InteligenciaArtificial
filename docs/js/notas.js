@@ -10,6 +10,7 @@ const NOTES_STORAGE_KEY = 'ia_agent_notes';
 
 let notes = [];
 let editingNoteId = null;
+let activeViewingNote = null;
 let selectedColor = '#fef08a';
 let uploadedImageUrl = null;
 let uploadedImageBase64 = null;
@@ -106,6 +107,8 @@ function renderNotesBoard() {
       drawingHtml = `<div class="postit-drawing-box"><img src="${note.drawingData}" alt="Dibujo de nota"></div>`;
     }
 
+    card.style.cursor = 'pointer';
+
     card.innerHTML = `
       <div class="postit-header">
         <span class="postit-pin">📌</span>
@@ -122,6 +125,10 @@ function renderNotesBoard() {
         ${imageHtml}
       </div>
     `;
+
+    card.addEventListener('click', () => {
+      openNoteViewModal(note);
+    });
 
     card.querySelector('.btn-edit-note').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -269,6 +276,81 @@ function setupModalEvents() {
   if (btnSave) {
     btnSave.addEventListener('click', handleSaveNote);
   }
+
+  // View Note Modal Listeners
+  const viewModal = document.getElementById('note-view-modal');
+  const btnCloseView = document.getElementById('btn-close-view-modal');
+  const btnCloseViewBottom = document.getElementById('btn-close-view-modal-bottom');
+  const btnEditFromView = document.getElementById('btn-edit-from-view');
+
+  const closeViewModal = () => {
+    if (viewModal) viewModal.classList.remove('open');
+    activeViewingNote = null;
+  };
+
+  if (btnCloseView) btnCloseView.addEventListener('click', closeViewModal);
+  if (btnCloseViewBottom) btnCloseViewBottom.addEventListener('click', closeViewModal);
+
+  if (viewModal) {
+    viewModal.addEventListener('click', (e) => {
+      if (e.target === viewModal) closeViewModal();
+    });
+  }
+
+  if (btnEditFromView) {
+    btnEditFromView.addEventListener('click', () => {
+      const noteToEdit = activeViewingNote;
+      closeViewModal();
+      if (noteToEdit) {
+        openNoteModal(noteToEdit);
+      }
+    });
+  }
+}
+
+function openNoteViewModal(note) {
+  const viewModal = document.getElementById('note-view-modal');
+  const viewCard = document.getElementById('note-view-card');
+  const viewTitle = document.getElementById('view-note-title');
+  const viewContent = document.getElementById('view-note-content');
+  const viewDrawingBox = document.getElementById('view-note-drawing-box');
+  const viewDrawing = document.getElementById('view-note-drawing');
+  const viewImageBox = document.getElementById('view-note-image-box');
+  const viewImage = document.getElementById('view-note-image');
+
+  if (!viewModal) return;
+
+  activeViewingNote = note;
+
+  if (viewCard) {
+    viewCard.style.backgroundColor = note.color || '#fef08a';
+  }
+
+  if (viewTitle) viewTitle.textContent = note.title || '';
+  if (viewContent) {
+    viewContent.textContent = note.content || '';
+    viewContent.style.display = note.content ? 'block' : 'none';
+  }
+
+  if (viewDrawingBox && viewDrawing) {
+    if (note.drawingData) {
+      viewDrawing.src = note.drawingData;
+      viewDrawingBox.style.display = 'block';
+    } else {
+      viewDrawingBox.style.display = 'none';
+    }
+  }
+
+  if (viewImageBox && viewImage) {
+    if (note.imageUrl) {
+      viewImage.src = note.imageUrl;
+      viewImageBox.style.display = 'block';
+    } else {
+      viewImageBox.style.display = 'none';
+    }
+  }
+
+  viewModal.classList.add('open');
 }
 
 function showModalImagePreview(src) {

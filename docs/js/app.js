@@ -76,6 +76,7 @@ let activeAlarmAudio = null;
 let currentTriggeredAlarm = null;
 
 let thoughtBubbleTimer = null;
+let thoughtLoadingTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Setup 3D Model Viewer & Three.js Fallback
@@ -187,7 +188,44 @@ function requestPermissionsAndTrackLocation() {
   }
 }
 
+function showThoughtBubbleLoading() {
+  const container = document.querySelector('.thought-bubble-container');
+  const thoughtText = document.getElementById('thought-text');
+
+  const chatDrawer = document.getElementById('chat-drawer');
+  if (chatDrawer && chatDrawer.classList.contains('open')) {
+    hideThoughtBubble();
+    return;
+  }
+
+  stopThoughtBubbleLoading();
+
+  if (thoughtBubbleTimer) {
+    clearTimeout(thoughtBubbleTimer);
+    thoughtBubbleTimer = null;
+  }
+
+  let step = 0;
+  const dots = ['.', '. .', '. . .'];
+  if (thoughtText) thoughtText.innerText = dots[0];
+  if (container) container.classList.remove('hidden');
+
+  thoughtLoadingTimer = setInterval(() => {
+    step = (step + 1) % dots.length;
+    if (thoughtText) thoughtText.innerText = dots[step];
+  }, 400);
+}
+
+function stopThoughtBubbleLoading() {
+  if (thoughtLoadingTimer) {
+    clearInterval(thoughtLoadingTimer);
+    thoughtLoadingTimer = null;
+  }
+}
+
 function showThoughtBubble(text, autoHideMs = 3000) {
+  stopThoughtBubbleLoading();
+
   const container = document.querySelector('.thought-bubble-container');
   const thoughtText = document.getElementById('thought-text');
 
@@ -219,6 +257,8 @@ function showThoughtBubble(text, autoHideMs = 3000) {
 }
 
 function hideThoughtBubble() {
+  stopThoughtBubbleLoading();
+
   const container = document.querySelector('.thought-bubble-container');
   if (container) {
     container.classList.add('hidden');
@@ -226,6 +266,34 @@ function hideThoughtBubble() {
   if (thoughtBubbleTimer) {
     clearTimeout(thoughtBubbleTimer);
     thoughtBubbleTimer = null;
+  }
+}
+
+function showChatLoading() {
+  const chatMessages = document.getElementById('chat-messages');
+  if (!chatMessages) return null;
+
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'chat-msg ai loading-msg';
+  loadingDiv.id = 'chat-loading-indicator';
+
+  const textP = document.createElement('p');
+  textP.innerText = 'Un momento...';
+  loadingDiv.appendChild(textP);
+
+  chatMessages.appendChild(loadingDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  return loadingDiv;
+}
+
+function removeChatLoading(loadingElem) {
+  if (loadingElem && loadingElem.parentNode) {
+    loadingElem.parentNode.removeChild(loadingElem);
+  }
+  const existing = document.getElementById('chat-loading-indicator');
+  if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing);
   }
 }
 
@@ -833,14 +901,19 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
   const chatDrawer = document.getElementById('chat-drawer');
   const isChatOpen = fromChat || (chatDrawer && chatDrawer.classList.contains('open'));
 
+  const chatLoadingElem = showChatLoading();
+
   if (!isChatOpen) {
-    showThoughtBubble('Pensando...', 0);
+    showThoughtBubbleLoading();
   } else {
     hideThoughtBubble();
   }
 
   try {
     const responseText = await processGeminiRequest(text, attachedData);
+
+    stopThoughtBubbleLoading();
+    removeChatLoading(chatLoadingElem);
 
     if (!isChatOpen) {
       showThoughtBubble(responseText, 6000);
@@ -863,6 +936,9 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
     }
   } catch (err) {
     console.error('Error processing AI response:', err);
+    stopThoughtBubbleLoading();
+    removeChatLoading(chatLoadingElem);
+
     const errorMsg = 'Lo siento, ocurrió un pequeño error. Por favor intenta de nuevo.';
     if (!isChatOpen) {
       showThoughtBubble(errorMsg, 4000);

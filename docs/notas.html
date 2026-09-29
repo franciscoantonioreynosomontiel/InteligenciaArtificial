@@ -114,6 +114,34 @@
     </div>
   </div>
 
+  <!-- Full Screen Note View Modal Overlay -->
+  <div id="note-view-modal" class="note-modal">
+    <div class="note-modal-card note-view-card" id="note-view-card" style="max-width: 680px; width: 95vw; border-radius: 28px; padding: 28px;">
+      <div class="modal-header" style="border-bottom: 2px dashed rgba(0,0,0,0.12); padding-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+          <span style="font-size: 1.5rem;">📌</span>
+          <h2 id="view-note-title" style="font-family: 'Caveat', cursive, sans-serif; font-size: 2rem; color: #1e1b4b; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></h2>
+        </div>
+        <button id="btn-close-view-modal" class="btn-close-modal" style="font-size: 1.5rem; padding: 4px 8px;">✕</button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 20px; padding-top: 18px; overflow-y: auto; max-height: 68vh;">
+        <div id="view-note-content" class="postit-text" style="font-size: 1.4rem; line-height: 1.5; color: #2e1065;"></div>
+        <div id="view-note-drawing-box" class="postit-drawing-box" style="display: none;">
+          <img id="view-note-drawing" src="" alt="Dibujo" style="max-height: 300px; width: 100%; object-fit: contain; border-radius: 12px; background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.08); padding: 8px;">
+        </div>
+        <div id="view-note-image-box" class="postit-image-box" style="display: none;">
+          <img id="view-note-image" src="" alt="Imagen" style="max-height: 450px; width: 100%; object-fit: contain; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.1);">
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px; margin-top: 10px;">
+        <button id="btn-edit-from-view" class="btn-secondary-action" style="width: auto; padding: 10px 20px;">Editar Nota</button>
+        <button id="btn-close-view-modal-bottom" class="btn-primary-action" style="width: auto; padding: 10px 24px;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="./js/notas.js"></script>
 </body>
 </html>

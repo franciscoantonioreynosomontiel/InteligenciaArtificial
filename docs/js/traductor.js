@@ -41,13 +41,11 @@ export class RealtimeTranslator {
     this.recognition = new SpeechRecognition();
     this.recognition.continuous = true;
     this.recognition.interimResults = false;
-
-    // Use current language selection (defaults to es-ES or en-US flexibly)
-    this.recognition.lang = this.supportedLangs[this.currentLangIndex];
+    this.recognition.lang = 'es-ES';
 
     this.recognition.onstart = () => {
-      console.log('RealtimeTranslator: Speech recognition started with lang:', this.recognition.lang);
-      this.updateStatus('Traductor activo', 'active');
+      console.log('RealtimeTranslator: Speech recognition started');
+      this.updateStatus('Traductor activo - Escuchando...', 'active');
     };
 
     this.recognition.onresult = async (event) => {
@@ -57,25 +55,20 @@ export class RealtimeTranslator {
       const lastResultIndex = results.length - 1;
       const transcript = results[lastResultIndex][0].transcript.trim();
 
-      if (transcript.length > 1) {
+      if (transcript.length > 0) {
         await this.handleSpeechInput(transcript);
       }
     };
 
     this.recognition.onerror = (event) => {
       console.warn('RealtimeTranslator recognition error:', event.error);
-      if (this.isActive && event.error !== 'no-speech') {
+      if (this.isActive && event.error !== 'no-speech' && !this.isProcessing) {
         setTimeout(() => this.restartRecognition(), 300);
       }
     };
 
     this.recognition.onend = () => {
-      if (this.isActive) {
-        // Toggle language mode for optimal bilingual speech recognition coverage
-        this.currentLangIndex = (this.currentLangIndex + 1) % this.supportedLangs.length;
-        if (this.recognition) {
-          this.recognition.lang = this.supportedLangs[this.currentLangIndex];
-        }
+      if (this.isActive && !this.isProcessing) {
         this.restartRecognition();
       }
     };
@@ -231,15 +224,74 @@ export class RealtimeTranslator {
   }
 
   localTranslationFallback(text) {
-    const isEnglish = /[a-zA-Z]/.test(text) && !/[áéíóúñ¿¡]/i.test(text);
-    const detected = isEnglish ? 'en' : 'es';
-    const target = isEnglish ? 'es' : 'en';
+    const cleanText = text.trim();
+    const lowerText = cleanText.toLowerCase();
+
+    const englishWords = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'how are you', 'what is your name', 'thank you', 'thanks', 'bye', 'goodbye', 'yes', 'no', 'please', 'help'];
+    const isExplicitEnglish = englishWords.some((w) => lowerText.includes(w)) || (/[a-zA-Z]/.test(cleanText) && !/[áéíóúñ¿¡]/i.test(cleanText));
+
+    const detected = isExplicitEnglish ? 'en' : 'es';
+    const target = isExplicitEnglish ? 'es' : 'en';
+
+    const dictionary = {
+      'hello': '¡Hola!',
+      'hi': '¡Hola!',
+      'hey': '¡Hola!',
+      'good morning': 'Buenos días',
+      'good afternoon': 'Buenas tardes',
+      'good evening': 'Buenas noches',
+      'how are you': '¿Cómo estás?',
+      'how are you?': '¿Cómo estás?',
+      'what is your name': '¿Cuál es tu nombre?',
+      'thank you': 'Muchas gracias',
+      'thanks': 'Gracias',
+      'bye': '¡Adiós!',
+      'goodbye': '¡Hasta luego!',
+      'yes': 'Sí',
+      'no': 'No',
+      'please': 'Por favor',
+      'hola': 'Hello!',
+      'buenos dias': 'Good morning!',
+      'buenos días': 'Good morning!',
+      'buenas tardes': 'Good afternoon!',
+      'buenas noches': 'Good evening!',
+      'como estas': 'How are you?',
+      'cómo estás': 'How are you?',
+      'gracias': 'Thank you!',
+      'muchas gracias': 'Thank you very much!',
+      'adios': 'Goodbye!',
+      'adiós': 'Goodbye!',
+      'por favor': 'Please'
+    };
+
+    let translated = dictionary[lowerText];
+
+    if (!translated) {
+      if (detected === 'en') {
+        translated = cleanText
+          .replace(/\bhello\b/gi, 'hola')
+          .replace(/\bhi\b/gi, 'hola')
+          .replace(/\bhow are you\b/gi, 'cómo estás')
+          .replace(/\bthank you\b/gi, 'gracias')
+          .replace(/\bthanks\b/gi, 'gracias')
+          .replace(/\bgoodbye\b/gi, 'adiós')
+          .replace(/\bbye\b/gi, 'adiós');
+      } else {
+        translated = cleanText
+          .replace(/\bhola\b/gi, 'hello')
+          .replace(/\bcómo estás\b/gi, 'how are you')
+          .replace(/\bcomo estas\b/gi, 'how are you')
+          .replace(/\bgracias\b/gi, 'thank you')
+          .replace(/\badiós\b/gi, 'goodbye')
+          .replace(/\badios\b/gi, 'goodbye');
+      }
+    }
 
     return {
-      original_text: text,
+      original_text: cleanText,
       detected_lang: detected,
       target_lang: target,
-      translated_text: text,
+      translated_text: translated,
       audio_base64: null
     };
   }
@@ -262,14 +314,28 @@ export class RealtimeTranslator {
 
       this.synth.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = langCode === 'en' ? 'en-US' : 'es-ES';
+      const targetLang = langCode === 'en' ? 'en-US' : 'es-ES';
+      utterance.lang = targetLang;
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
+
+      const voices = this.synth.getVoices();
+      if (voices && voices.length > 0) {
+        const matchingVoice = voices.find((v) => v.lang.startsWith(langCode) || v.lang.replace('_', '-').startsWith(targetLang));
+        if (matchingVoice) {
+          utterance.voice = matchingVoice;
+        }
+      }
 
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
 
-      this.synth.speak(utterance);
+      try {
+        if (this.synth.paused) this.synth.resume();
+        this.synth.speak(utterance);
+      } catch (e) {
+        resolve();
+      }
     });
   }
 
