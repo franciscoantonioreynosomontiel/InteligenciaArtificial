@@ -1,7 +1,7 @@
 {
-  "name": "Asistente PWA",
-  "short_name": "Asistente",
-  "description": "Asistente Virtual interactivo 3D con IA Gemini",
+  "name": "Amigo",
+  "short_name": "Amigo",
+  "description": "Amigo - Asistente Virtual Interactivo 3D con IA",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F3E8FF",
@@ -16,6 +16,12 @@
       "src": "./assets/img/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "./assets/img/logopwa.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

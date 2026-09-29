@@ -12,12 +12,48 @@ let activeRecordingSource = null; // 'main' or 'chat'
 let currentAttachment = null; // { base64, url }
 let recognition = null;
 let synth = window.speechSynthesis;
+let deferredInstallPrompt = null;
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then((reg) => console.log('ServiceWorker registered:', reg.scope))
-    .catch((err) => console.warn('ServiceWorker registration failed:', err));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('ServiceWorker registered:', reg.scope))
+      .catch((err) => console.warn('ServiceWorker registration failed:', err));
+  });
+}
+
+// Handle PWA Installability
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  console.log('PWA deferredInstallPrompt captured');
+  showInstallPWAButton();
+});
+
+function showInstallPWAButton() {
+  if (document.getElementById('btn-install-pwa')) return;
+  const topActions = document.querySelector('.top-actions');
+  if (!topActions) return;
+
+  const btnInstall = document.createElement('button');
+  btnInstall.id = 'btn-install-pwa';
+  btnInstall.className = 'btn-icon';
+  btnInstall.title = 'Instalar App Amigo';
+  btnInstall.setAttribute('aria-label', 'Instalar App');
+  btnInstall.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+
+  btnInstall.addEventListener('click', async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      console.log(`PWA install prompt outcome: ${outcome}`);
+      deferredInstallPrompt = null;
+      btnInstall.remove();
+    }
+  });
+
+  topActions.insertBefore(btnInstall, topActions.firstChild);
 }
 
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
@@ -36,12 +72,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Setup UI Event Listeners
   setupEventListeners();
 
-  // 4. Start Real-time Alarm Execution Engine
+  // 4. Request Permissions (Notifications & Location)
+  requestPermissions();
+
+  // 5. Start Real-time Alarm Execution Engine
   initAlarmExecutionEngine();
 
-  // 5. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
+  // 6. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
   showThoughtBubble('¡Hola Sara! ¿En qué te puedo ayudar hoy?', 3000);
 });
+
+function requestPermissions() {
+  // Notification Permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+
+  // Geolocation / Location Permission
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        console.log('Ubicación concedida:', pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        console.warn('Permiso de ubicación no concedido o no disponible:', err.message);
+      },
+      { timeout: 10000, enableHighAccuracy: false }
+    );
+  }
+}
 
 function showThoughtBubble(text, autoHideMs = 3000) {
   const container = document.querySelector('.thought-bubble-container');
