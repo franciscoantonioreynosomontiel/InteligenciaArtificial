@@ -75,3 +75,20 @@ ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 -- Politica para permitir Lectura, Insercion, Actualizacion y Eliminacion
 DROP POLICY IF EXISTS "Public full access notes" ON notes;
 CREATE POLICY "Public full access notes" ON notes FOR ALL USING (true) WITH CHECK (true);
+
+
+-- 4. Tabla para Ubicaciones GPS de Dispositivos (PWA para 2 personas)
+CREATE TABLE IF NOT EXISTS locations (
+  device_id TEXT PRIMARY KEY,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  address TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar Row Level Security (RLS)
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+
+-- Politica para permitir Lectura, Insercion, Actualizacion y Eliminacion Publica
+DROP POLICY IF EXISTS "Public full access locations" ON locations;
+CREATE POLICY "Public full access locations" ON locations FOR ALL USING (true) WITH CHECK (true);

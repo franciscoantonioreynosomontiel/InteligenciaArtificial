@@ -4,7 +4,7 @@
 // Esta funcion es la Edge Function avanzada para el asistente virtual Sara.
 // Incorpora:
 // 1. Detección dinamica de modelos de Google Gemini via `ListModels` API.
-// 2. Soporte completo para Function Calling (creacion de alarmas, recordatorios, FAQs).
+// 2. Soporte completo para Function Calling (alarmas, recordatorios, FAQs, notas, ubicaciones).
 // 3. Conversacion fluida de varios turnos (multi-turn history).
 // 4. Analisis de imagenes multimodal (vision).
 // 5. Manejo avanzado de errores y reintentos automatizados sin frases estaticas.
@@ -45,6 +45,7 @@ interface RequestBody {
   image?: string;
   image_url?: string;
   knowledge_context?: string;
+  location_context?: string;
 }
 
 interface FunctionParameterProperty {
@@ -188,6 +189,14 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
           },
           required: ["titulo"]
         }
+      },
+      {
+        name: "consultar_ubicaciones",
+        description: "Consulta la ubicación GPS actual y dirección de ambas personas/dispositivos que usan la PWA.",
+        parameters: {
+          type: "OBJECT",
+          properties: {}
+        }
       }
     ]
   }
@@ -241,7 +250,7 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt, message, history, image, image_url, knowledge_context } = body;
+    const { prompt, message, history, image, image_url, knowledge_context, location_context } = body;
     const userPrompt = (prompt || message || 'Hola').trim();
 
     const apiKey = (
@@ -302,7 +311,10 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
 3. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
 4. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), entrega la guía completa paso a paso con todos sus detalles directamente en español sin prefijos ni borradores.
 5. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
-6. DISTINCION CRITICA ENTRE NOTAS, RECORDATORIOS Y ALARMAS:
+6. UBICACIÓN Y DISPOSITIVOS DE LA PWA:
+   - Solo dos personas usan esta PWA. Cuando pregunten por "ubicación", "dónde están", "dónde está la otra persona" o similar, indícales la ubicación GPS actual y dirección de ambas personas basándote en la información recibida de las ubicaciones.
+   - Si no se cuenta aún con la ubicación de alguna persona, indícalo amablemente sin fallar.
+7. DISTINCION CRITICA ENTRE NOTAS, RECORDATORIOS Y ALARMAS:
    - NOTAS: Si el usuario te pide "crea una nota...", "guarda una nota...", "anota...", "haz una lista de...", o menciona "post-it", DEBES invocar OBLIGATORIAMENTE la herramienta 'crear_nota'. NUNCA crees un recordatorio ni una alarma cuando pidan una nota.
    - Si el usuario te pide crear una nota pero NO ha indicado con qué nombre o título desea guardarla, PREGÚNTALE DIRECTAMENTE: "¿Con qué nombre te gustaría guardar tu nota?".
    - RECORDATORIOS: Invoca 'crear_recordatorio' SOLO cuando te pidan explícitamente recordar algo a una hora/fecha determinada ("recuérdame a las 5", "crea un recordatorio para mañana").
