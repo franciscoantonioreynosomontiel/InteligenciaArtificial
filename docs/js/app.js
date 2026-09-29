@@ -2,6 +2,11 @@
 import { Scene3D } from './three-scene.js';
 import { processGeminiRequest, formulateAIReminderMessage } from './gemini.js';
 import { uploadToCloudinary } from './cloudinary.js';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let scene3D = null;
 let mainSpeechEnabled = true;
@@ -21,6 +26,16 @@ if ('serviceWorker' in navigator) {
       .then((reg) => console.log('ServiceWorker registered:', reg.scope))
       .catch((err) => console.warn('ServiceWorker registration failed:', err));
   });
+}
+
+// Device ID tracking for two-person PWA setup
+function getDeviceId() {
+  let devId = localStorage.getItem('ia_agent_device_id');
+  if (!devId) {
+    devId = 'dispositivo_' + Math.random().toString(36).substring(2, 9);
+    localStorage.setItem('ia_agent_device_id', devId);
+  }
+  return devId;
 }
 
 // Handle PWA Installability
@@ -72,8 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Setup UI Event Listeners
   setupEventListeners();
 
-  // 4. Request Permissions (Notifications & Location)
-  requestPermissions();
+  // 4. Request Permissions & Track Location
+  requestPermissionsAndTrackLocation();
 
   // 5. Start Real-time Alarm Execution Engine
   initAlarmExecutionEngine();
@@ -82,23 +97,71 @@ document.addEventListener('DOMContentLoaded', () => {
   showThoughtBubble('¡Hola Sara! ¿En qué te puedo ayudar hoy?', 3000);
 });
 
-function requestPermissions() {
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+      headers: { 'Accept-Language': 'es' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.display_name) {
+        return data.display_name;
+      }
+    }
+  } catch (e) {
+    console.warn('Reverse geocoding error:', e);
+  }
+  return `Latitud ${lat.toFixed(5)}, Longitud ${lon.toFixed(5)}`;
+}
+
+async function updateLocationInSupabase(lat, lon) {
+  const deviceId = getDeviceId();
+  const address = await reverseGeocode(lat, lon);
+
+  try {
+    await supabase.from('locations').upsert([{
+      device_id: deviceId,
+      latitude: lat,
+      longitude: lon,
+      address: address,
+      updated_at: new Date().toISOString()
+    }], { onConflict: 'device_id' });
+    console.log(`Ubicacion sincronizada para ${deviceId}:`, address);
+  } catch (err) {
+    console.warn('Error sincronizando ubicacion a Supabase:', err);
+  }
+}
+
+function requestPermissionsAndTrackLocation() {
   // Notification Permission
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
 
-  // Geolocation / Location Permission
+  // Geolocation Continuous Tracking
   if ('geolocation' in navigator) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        console.log('Ubicación concedida:', pos.coords.latitude, pos.coords.longitude);
-      },
-      (err) => {
-        console.warn('Permiso de ubicación no concedido o no disponible:', err.message);
-      },
-      { timeout: 10000, enableHighAccuracy: false }
-    );
+    const handlePos = (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      console.log('Ubicación obtenida:', lat, lon);
+      updateLocationInSupabase(lat, lon);
+    };
+
+    const handleErr = (err) => {
+      console.warn('Permiso de ubicación no concedido o no disponible:', err.message);
+    };
+
+    navigator.geolocation.getCurrentPosition(handlePos, handleErr, { timeout: 10000, enableHighAccuracy: true });
+
+    try {
+      navigator.geolocation.watchPosition(handlePos, handleErr, {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 27000
+      });
+    } catch (e) {
+      console.warn('watchPosition failed:', e);
+    }
   }
 }
 

@@ -76,6 +76,32 @@ function getStoredAlarmsPrompt() {
   }
 }
 
+async function getStoredLocationsPrompt() {
+  try {
+    const { data: locations, error } = await supabase
+      .from('locations')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error || !locations || locations.length === 0) {
+      return '\n\nUbicaciones registradas: Aún no hay datos de ubicación disponibles de ningún dispositivo.\n';
+    }
+
+    const currentDevId = localStorage.getItem('ia_agent_device_id') || '';
+
+    let locStr = '\n\nUbicaciones GPS actuales de los dos dispositivos PWA:\n';
+    locations.forEach((loc, index) => {
+      const isCurrent = loc.device_id === currentDevId;
+      const label = isCurrent ? `Persona 1 (Tú - ${loc.device_id})` : `Persona 2 (${loc.device_id})`;
+      const updateTime = new Date(loc.updated_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      locStr += `${index + 1}. ${label}: ${loc.address || 'Sin dirección'} (Lat: ${loc.latitude}, Lon: ${loc.longitude}) - Actualizado: ${updateTime}\n`;
+    });
+    return locStr;
+  } catch (e) {
+    return '';
+  }
+}
+
 async function syncAlarmToSupabase(item) {
   try {
     const { data, error } = await supabase.from('alarms_reminders').insert([{
@@ -180,7 +206,14 @@ async function syncDeleteAlarmFromSupabase(query) {
   }
 }
 
-// Tool Execution Dispatcher for Alarms, Reminders and Knowledge
+// Tool Execution Dispatcher for Alarms, Reminders, Knowledge and Locations
+export async function executeAlarmToolAsync(toolName, args) {
+  if (toolName === 'consultar_ubicaciones') {
+    return await getStoredLocationsPrompt();
+  }
+  return executeAlarmTool(toolName, args);
+}
+
 export function executeAlarmTool(toolName, args) {
   const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
   let items = raw ? JSON.parse(raw) : [];
@@ -371,8 +404,9 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
   const contextNotes = getStoredNotesPrompt();
+  const contextLocations = await getStoredLocationsPrompt();
 
-  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}`;
+  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}${contextLocations}`;
 
   if (userPrompt) {
     chatHistory.push({ role: 'user', content: userPrompt });
@@ -388,6 +422,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
       prompt: fullPrompt,
       history: chatHistory.slice(0, -1),
       knowledge_context: contextKnowledge,
+      location_context: contextLocations,
       image: attachmentData ? attachmentData.base64 : null
     };
 
@@ -411,7 +446,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
           if (fnName === 'crear_nota' && attachmentData) {
             fnArgs.image_url = fnArgs.image_url || attachmentData.url || attachmentData.base64;
           }
-          const toolRes = executeAlarmTool(fnName, fnArgs);
+          const toolRes = await executeAlarmToolAsync(fnName, fnArgs);
           toolResultsStr += ` ${toolRes}`;
         }
         aiReplyText = cleanAIResponseText((resData.reply || '') + toolResultsStr);
@@ -425,7 +460,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
 
   // 2. Procesamiento dinamico directo en cliente sin plantillas
   if (!aiReplyText) {
-    aiReplyText = executeDynamicClientAnswer(userPrompt, attachmentData);
+    aiReplyText = await executeDynamicClientAnswer(userPrompt, attachmentData);
   }
 
   if (aiReplyText) {
@@ -436,11 +471,20 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   return aiReplyText;
 }
 
-function executeDynamicClientAnswer(prompt, attachment) {
+async function executeDynamicClientAnswer(prompt, attachment) {
   const lower = (prompt || '').toLowerCase().trim();
 
   if (attachment) {
     return 'He analizado la imagen proporcionada. Muestra un elemento visual que puedo examinar detalladamente. ¿Tienes alguna pregunta específica sobre su contenido o detalles?';
+  }
+
+  // Consulta de ubicación de ambas personas
+  if (lower.includes('ubicacion') || lower.includes('ubicación') || lower.includes('donde esta') || lower.includes('dónde está') || lower.includes('donde estamos') || lower.includes('dónde estamos') || lower.includes('donde estan') || lower.includes('dónde están')) {
+    const locInfo = await getStoredLocationsPrompt();
+    if (locInfo && locInfo.length > 20) {
+      return locInfo.trim();
+    }
+    return 'En este momento se está actualizando la ubicación GPS. Por favor verifica que los permisos de ubicación estén habilitados en ambos dispositivos.';
   }
 
   // Operaciones matemáticas directas (e.g. "1 mas 1", "2 + 2", "cuanto es 15 por 3")
