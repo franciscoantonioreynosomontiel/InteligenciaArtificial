@@ -8,6 +8,7 @@ const EDGE_FUNCTION_NAME = 'gemini-chat';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 const KNOWLEDGE_STORAGE_KEY = 'ia_agent_knowledge';
+const NOTES_STORAGE_KEY = 'ia_agent_notes';
 
 // Conversational memory for multi-turn chats
 let chatHistory = [];
@@ -32,6 +33,23 @@ function getStoredKnowledgePrompt() {
       knowledgeStr += `${index + 1}. [${item.type.toUpperCase()}] ${item.title}: ${item.content}\n`;
     });
     return knowledgeStr;
+  } catch (e) {
+    return '';
+  }
+}
+
+function getStoredNotesPrompt() {
+  try {
+    const raw = localStorage.getItem(NOTES_STORAGE_KEY);
+    if (!raw) return '';
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items) || items.length === 0) return '';
+
+    let noteStr = '\n\nNotas tipo Post-it guardadas:\n';
+    items.forEach((item, index) => {
+      noteStr += `${index + 1}. Titulo: "${item.title}" | Contenido: "${item.content || ''}"\n`;
+    });
+    return noteStr;
   } catch (e) {
     return '';
   }
@@ -98,6 +116,33 @@ async function syncAlarmToSupabase(item) {
     }
   } catch (e) {
     console.warn('Could not sync created alarm/reminder to Supabase:', e);
+  }
+}
+
+async function syncNoteToSupabase(item) {
+  try {
+    const { data, error } = await supabase.from('notes').insert([{
+      title: item.title,
+      content: item.content,
+      color: item.color || '#fef08a',
+      width: item.width || 260,
+      height: item.height || 260
+    }]).select();
+
+    if (!error && data && data[0]) {
+      item.db_id = data[0].id;
+      const raw = localStorage.getItem(NOTES_STORAGE_KEY);
+      if (raw) {
+        let items = JSON.parse(raw);
+        const idx = items.findIndex((i) => i.id === item.id);
+        if (idx !== -1) {
+          items[idx].db_id = data[0].id;
+          localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(items));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not sync note to Supabase:', e);
   }
 }
 
@@ -223,6 +268,24 @@ export function executeAlarmTool(toolName, args) {
       return `Conocimiento "${newFaq.title}" guardado en aprender.html.`;
     }
 
+    case 'crear_nota': {
+      const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+      let nItems = nRaw ? JSON.parse(nRaw) : [];
+      const newNote = {
+        id: 'note_' + Date.now(),
+        title: args.titulo || 'Nueva Nota',
+        content: args.contenido || '',
+        color: args.color || '#fef08a',
+        width: 260,
+        height: 260,
+        createdAt: new Date().toISOString()
+      };
+      nItems.push(newNote);
+      localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
+      syncNoteToSupabase(newNote);
+      return `Nota post-it "${newNote.title}" guardada exitosamente en notas.html.`;
+    }
+
     case 'eliminar_alarma':
     case 'eliminar_recordatorio': {
       const query = (args.nombre || args.id || '').toLowerCase();
@@ -305,8 +368,9 @@ export function cleanAIResponseText(text) {
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
+  const contextNotes = getStoredNotesPrompt();
 
-  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}`;
+  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}`;
 
   if (userPrompt) {
     chatHistory.push({ role: 'user', content: userPrompt });
@@ -433,6 +497,21 @@ function executeDynamicClientAnswer(prompt, attachment) {
 
     const result = executeAlarmTool('crear_alarma', alarmData);
     return `${result} Ha sido registrada en tu sección de Algoritmos en aprender.html.`;
+  }
+
+  // Crear Nota Post-it
+  if (lower.includes('nota') || lower.includes('anota') || lower.includes('post-it') || lower.includes('postit')) {
+    let title = prompt.replace(/crea una nota|crear nota|haz una nota|anota|guarda una nota|post-it|postit|nota/gi, '').trim();
+    if (!title) title = 'Nota de Sara';
+
+    const noteData = {
+      titulo: title,
+      contenido: title,
+      color: '#fef08a'
+    };
+
+    const result = executeAlarmTool('crear_nota', noteData);
+    return `${result} Puedes verla y editarla en la seccion de notas.html.`;
   }
 
   // Programar Recordatorio
