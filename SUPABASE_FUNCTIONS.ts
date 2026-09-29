@@ -197,6 +197,29 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
           type: "OBJECT",
           properties: {}
         }
+      },
+      {
+        name: "llamar_contacto",
+        description: "Busca a una persona en los contactos por su nombre y abre la app de llamadas del teléfono.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING", description: "Nombre de la persona a llamar" }
+          },
+          required: ["nombre"]
+        }
+      },
+      {
+        name: "guardar_contacto",
+        description: "Guarda un nuevo número de teléfono con el nombre de la persona en la libreta de contactos.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING", description: "Nombre completo de la persona" },
+            telefono: { type: "STRING", description: "Número de teléfono" }
+          },
+          required: ["nombre", "telefono"]
+        }
       }
     ]
   }

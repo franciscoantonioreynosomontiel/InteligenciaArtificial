@@ -132,6 +132,28 @@ async function updateLocationInSupabase(lat, lon) {
   }
 }
 
+export async function refreshCurrentLocationRealtime() {
+  return new Promise((resolve) => {
+    if (!('geolocation' in navigator)) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        await updateLocationInSupabase(lat, lon);
+        resolve({ latitude: lat, longitude: lon });
+      },
+      (err) => {
+        console.warn('Realtime location fetch error:', err.message);
+        resolve(null);
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  });
+}
+
 function requestPermissionsAndTrackLocation() {
   // Notification Permission
   if ('Notification' in window && Notification.permission === 'default') {
@@ -156,8 +178,8 @@ function requestPermissionsAndTrackLocation() {
     try {
       navigator.geolocation.watchPosition(handlePos, handleErr, {
         enableHighAccuracy: true,
-        maximumAge: 30000,
-        timeout: 27000
+        maximumAge: 15000,
+        timeout: 20000
       });
     } catch (e) {
       console.warn('watchPosition failed:', e);
