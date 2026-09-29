@@ -207,6 +207,126 @@ body {
 .dot-1 { width: 14px; height: 14px; }
 .dot-2 { width: 9px; height: 9px; }
 
+/* Real-Time Translator Overlay Card */
+.translator-card {
+  position: absolute;
+  top: calc(80px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  padding: 14px 18px;
+  box-shadow: 0 12px 32px rgba(147, 51, 234, 0.12);
+  z-index: 15;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.translator-card.active {
+  display: flex;
+}
+
+.translator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding-bottom: 8px;
+}
+
+.translator-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.translator-status-text {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.translator-status-text.active {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.translator-status-text.stopped {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.translator-log {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.translator-log-entry {
+  padding: 6px 10px;
+  border-radius: 8px;
+  line-height: 1.35;
+}
+
+.translator-log-entry.system {
+  background: #f8fafc;
+  color: #64748b;
+  font-style: italic;
+}
+
+.translator-log-entry.input {
+  background: #f3e8ff;
+  color: var(--text-main);
+}
+
+.translator-log-entry.output {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.translator-log-entry.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.btn-translate-toggle {
+  background: linear-gradient(135deg, #0284c7, #3b82f6);
+  color: white;
+  padding: 10px 18px;
+  border-radius: 24px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3);
+  transition: all 0.25s ease;
+}
+
+.btn-translate-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4);
+}
+
+.btn-translate-toggle.active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  animation: pulseMic 1.5s infinite;
+}
+
 /* Bottom Floating Control Bar around 3D canvas */
 .bottom-control-bar {
   position: absolute;
@@ -215,15 +335,15 @@ body {
   transform: translateX(-50%);
   z-index: 10;
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(16px);
-  padding: 10px 20px;
+  padding: 10px 18px;
   border-radius: 40px;
   border: 1px solid var(--card-border);
   box-shadow: var(--glass-shadow);
-  max-width: 92vw;
+  max-width: 95vw;
 }
 
 .btn-main-mic {
