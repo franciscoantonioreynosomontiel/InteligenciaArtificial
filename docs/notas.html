@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notas Post-it</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="page-learn">
+
+  <div class="learn-container" style="max-width: 1200px;">
+    <!-- Top Bar Navigation -->
+    <div class="learn-header">
+      <div class="header-title-group">
+        <h1>Notas Post-it</h1>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <a href="./alarmas.html" class="btn-back">Alarmas</a>
+        <a href="./recordatorios.html" class="btn-back">Recordatorios</a>
+        <a href="./aprender.html" class="btn-back">Conocimiento</a>
+        <a href="./index.html" class="btn-back" style="background: var(--primary-purple); color: white;">Volver</a>
+      </div>
+    </div>
+
+    <!-- Sticky Board Container -->
+    <div id="notes-board" class="notes-board">
+      <!-- The '+' Card Button will be rendered here along with Post-it Notes -->
+    </div>
+  </div>
+
+  <!-- Note Modal / Editor Dialog -->
+  <div id="note-modal" class="note-modal">
+    <div class="note-modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title">Nueva Nota Post-it</h3>
+        <button id="btn-close-modal" class="btn-close-modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="note-title-input">Nombre de la nota</label>
+          <input type="text" id="note-title-input" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="note-content-input">Contenido</label>
+          <textarea id="note-content-input" class="form-textarea" style="min-height: 80px;"></textarea>
+        </div>
+
+        <div class="form-row" style="gap: 16px; flex-wrap: wrap;">
+          <!-- Color Picker -->
+          <div class="form-group flex-1">
+            <label>Color del Post-it</label>
+            <div class="color-picker-group">
+              <button type="button" class="color-swatch active" data-color="#fef08a" style="background: #fef08a;"></button>
+              <button type="button" class="color-swatch" data-color="#fbcfe8" style="background: #fbcfe8;"></button>
+              <button type="button" class="color-swatch" data-color="#bae6fd" style="background: #bae6fd;"></button>
+              <button type="button" class="color-swatch" data-color="#bbf7d0" style="background: #bbf7d0;"></button>
+              <button type="button" class="color-swatch" data-color="#e9d5ff" style="background: #e9d5ff;"></button>
+            </div>
+          </div>
+
+          <!-- Size Selection -->
+          <div class="form-group flex-1">
+            <label for="note-size-select">Tamaño</label>
+            <select id="note-size-select" class="form-input custom-select">
+              <option value="220x220">Pequeño (220x220)</option>
+              <option value="260x260" selected>Mediano (260x260)</option>
+              <option value="320x320">Grande (320x320)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Drawing Canvas Area -->
+        <div class="form-group">
+          <label>Dibujar en la nota</label>
+          <div class="drawing-container">
+            <div class="drawing-toolbar">
+              <input type="color" id="draw-color-picker" value="#2e1065" class="draw-color-input">
+              <input type="range" id="draw-line-width" min="1" max="15" value="3" style="width: 80px;">
+              <button type="button" id="btn-clear-canvas" class="btn-tool">Limpiar Dibujo</button>
+            </div>
+            <canvas id="note-canvas" width="400" height="200" class="note-drawing-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Image Upload Attachment -->
+        <div class="form-group">
+          <label>Agregar Imagen</label>
+          <div class="custom-file-wrapper">
+            <input type="file" id="note-image-input" class="file-input-hidden" accept="image/*">
+            <label for="note-image-input" class="custom-file-btn">
+              <span>Seleccionar Imagen</span>
+            </label>
+            <span id="note-image-name" class="file-name-display">Sin imagen</span>
+            <button type="button" id="btn-remove-note-img" class="btn-delete" style="display: none; padding: 4px 10px;">Quitar</button>
+          </div>
+          <div id="note-image-preview-box" style="margin-top: 8px; display: none;">
+            <img id="note-image-preview" src="" style="max-height: 120px; border-radius: 8px; object-fit: contain;">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-save-note" class="btn-primary-action">Guardar Nota</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/notas.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alarmas</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="page-learn">
+
+  <div class="learn-container">
+    <div class="learn-header">
+      <div class="header-title-group">
+        <h1>Mis Alarmas</h1>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <a href="./recordatorios.html" class="btn-back">Recordatorios</a>
+        <a href="./notas.html" class="btn-back">Notas</a>
+        <a href="./aprender.html" class="btn-back">Conocimiento</a>
+        <a href="./index.html" class="btn-back" style="background: var(--primary-purple); color: white;">Volver</a>
+      </div>
+    </div>
+
+    <!-- Search / Filter Bar -->
+    <div class="filter-bar">
+      <div class="search-wrapper">
+        <input type="text" id="search-alarms" class="form-input search-input" placeholder="Buscar alarma por nombre o mensaje...">
+      </div>
+    </div>
+
+    <!-- Dynamic Alarms List Container -->
+    <div id="alarms-list" class="knowledge-list" style="max-height: none;">
+      <!-- Alarm cards inserted dynamically -->
+    </div>
+  </div>
+
+  <script type="module" src="./js/alarmas.js"></script>
+</body>
+</html>

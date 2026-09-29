@@ -174,6 +174,19 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
           },
           required: ["titulo", "contenido"]
         }
+      },
+      {
+        name: "crear_nota",
+        description: "Crea y guarda una nueva nota tipo post-it especificando titulo, contenido opcional y color pastel opcional.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            titulo: { type: "STRING", description: "Titulo o nombre de la nota post-it" },
+            contenido: { type: "STRING", description: "Texto o detalles anotados en el post-it" },
+            color: { type: "STRING", description: "Color pastel opcional (#fef08a, #fbcfe8, #bae6fd, #bbf7d0, #e9d5ff)" }
+          },
+          required: ["titulo"]
+        }
       }
     ]
   }
@@ -288,7 +301,7 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
 3. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
 4. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), entrega la guía completa paso a paso con todos sus detalles directamente en español sin prefijos ni borradores.
 5. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
-6. Si el usuario te pide programar una alarma, recordatorio o guardar un tema, invoca la herramienta adecuada de function calling.`
+6. Si el usuario te pide programar una alarma, recordatorio, guardar una nota post-it o guardar un tema, invoca la herramienta adecuada de function calling.`
         }
       ]
     };
