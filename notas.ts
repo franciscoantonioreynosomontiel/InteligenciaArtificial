@@ -1,16 +1,15 @@
 // ====================================================================
-// EDGE FUNCTION EXCLUSIVA PARA CREACION DE NOTAS (notas-agent/index.ts)
+// EDGE FUNCTION EXCLUSIVA PARA NOTAS (notas/index.ts)
 // ====================================================================
-// Esta funcion Edge Function en TypeScript es EXCLUSIVA para procesar
-// peticiones de notas post-it con la Inteligencia Artificial (Gemini).
+// Esta Edge Function en TypeScript se llama exactamente `notas`
+// y se encarga EXCLUSIVAMENTE de procesar peticiones para crear y guardar
+// notas post-it con la Inteligencia Artificial (Gemini).
 //
-// CARACTERISTICAS PRINCIPALES:
-// 1. Analiza el mensaje del usuario para detectar la intencion de crear una nota.
-// 2. Si el usuario NO especifica un nombre o titulo para la nota, la IA
-//    le PREGUNTA DIRECTAMENTE con que nombre desea guardarla.
-// 3. Soporta adjuntar imagenes/fotos (vision multimodal) en la nota.
-// 4. Inserta directamente la nota en la tabla `notes` de Supabase si
-//    se proporcionan las credenciales de Supabase en el entorno.
+// CARACTERISTICAS:
+// 1. Si el usuario NO indica un titulo/nombre para la nota, la IA le
+//    PREGUNTA DIRECTAMENTE con que nombre desea guardarla.
+// 2. Soporta adjuntar imagenes/fotos tomadas por la camara o cargadas.
+// 3. Inserta directamente la nota en la tabla `notes` de Supabase.
 // ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -50,7 +49,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Declaracion de Function Calling exclusiva para Crear Nota
+    // Declaracion de Function Calling exclusiva para Crear Nota
     const tools = [
       {
         functionDeclarations: [
@@ -128,7 +127,6 @@ REGLAS ESTRICTAS PARA NOTAS:
             const noteColor = args.color || '#fef08a';
             const noteImg = args.image_url || rawImage || null;
 
-            // Guardar directamente en la tabla 'notes' de Supabase
             if (supabaseServiceKey) {
               const supabase = createClient(supabaseUrl, supabaseServiceKey);
               const { data: inserted, error } = await supabase.from('notes').insert([{
@@ -150,7 +148,6 @@ REGLAS ESTRICTAS PARA NOTAS:
       }
     }
 
-    // Fallback si no hay API key o si el usuario no dio titulo
     if (!reply) {
       const lower = userMessage.toLowerCase();
       let extractedTitle = userMessage.replace(/crea una nota|crear nota|haz una nota|anota|nota/gi, '').trim();
