@@ -14,6 +14,8 @@ export class RealtimeTranslator {
     this.translatorLog = null;
     this.currentAudio = null;
     this.isProcessing = false;
+    this.currentLangIndex = 0;
+    this.supportedLangs = ['es-ES', 'en-US']; // Alternating recognition languages
   }
 
   init() {
@@ -37,14 +39,15 @@ export class RealtimeTranslator {
     }
 
     this.recognition = new SpeechRecognition();
-    // Continuous multi-lang listening mode
     this.recognition.continuous = true;
     this.recognition.interimResults = false;
-    this.recognition.lang = 'en-US'; // Broad recognition for bilingual stream
+
+    // Use current language selection (defaults to es-ES or en-US flexibly)
+    this.recognition.lang = this.supportedLangs[this.currentLangIndex];
 
     this.recognition.onstart = () => {
-      console.log('RealtimeTranslator: Speech recognition started');
-      this.updateStatus('🔴 Traductor activo', 'active');
+      console.log('RealtimeTranslator: Speech recognition started with lang:', this.recognition.lang);
+      this.updateStatus('Traductor activo', 'active');
     };
 
     this.recognition.onresult = async (event) => {
@@ -68,6 +71,11 @@ export class RealtimeTranslator {
 
     this.recognition.onend = () => {
       if (this.isActive) {
+        // Toggle language mode for optimal bilingual speech recognition coverage
+        this.currentLangIndex = (this.currentLangIndex + 1) % this.supportedLangs.length;
+        if (this.recognition) {
+          this.recognition.lang = this.supportedLangs[this.currentLangIndex];
+        }
         this.restartRecognition();
       }
     };
@@ -77,9 +85,7 @@ export class RealtimeTranslator {
     if (!this.isActive || !this.recognition) return;
     try {
       this.recognition.start();
-    } catch (e) {
-      // Already running or starting
-    }
+    } catch (e) {}
   }
 
   toggleTranslation() {
@@ -99,14 +105,17 @@ export class RealtimeTranslator {
     this.isActive = true;
     if (this.btnTranslate) {
       this.btnTranslate.classList.add('active');
-      this.btnTranslate.innerHTML = `<span>🔴 Traductor activo</span>`;
+      this.btnTranslate.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        <span>Traductor activo</span>
+      `;
     }
 
     if (this.translatorCard) {
       this.translatorCard.classList.add('active');
     }
 
-    this.updateStatus('🔴 Traductor activo - Escuchando...', 'active');
+    this.updateStatus('Traductor activo - Escuchando...', 'active');
     this.addLogMessage('system', 'Sesión de traducción iniciada.');
 
     try {
@@ -137,11 +146,10 @@ export class RealtimeTranslator {
 
     if (this.btnTranslate) {
       this.btnTranslate.classList.remove('active');
-      this.btnTranslate.innerHTML = `<span>🎙️ Traducir</span>`;
-    }
-
-    if (this.translatorCard) {
-      this.translatorCard.classList.remove('active');
+      this.btnTranslate.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        <span>Traducir</span>
+      `;
     }
 
     this.updateStatus('Traductor detenido', 'stopped');
@@ -171,7 +179,6 @@ export class RealtimeTranslator {
     this.addLogMessage('input', `Escuchado: "${inputText}"`);
 
     try {
-      // Temporarily pause recognition while processing translation to prevent feedback loops
       try { this.recognition.stop(); } catch (e) {}
 
       const translationData = await this.callTranslationEdgeFunction(inputText);
@@ -181,9 +188,8 @@ export class RealtimeTranslator {
         const target = translationData.target_lang || 'es';
         const translated = translationData.translated_text;
 
-        this.addLogMessage('output', `[${detected.toUpperCase()} ➔ ${target.toUpperCase()}] ${translated}`);
+        this.addLogMessage('output', `[${detected.toUpperCase()} -> ${target.toUpperCase()}] ${translated}`);
 
-        // Audio Output Routing
         if (translationData.audio_base64) {
           await this.playAudioBase64(translationData.audio_base64);
         } else {
@@ -217,11 +223,9 @@ export class RealtimeTranslator {
       if (res.ok) {
         return await res.json();
       } else {
-        // Fallback local translation logic if edge function endpoint is not yet deployed
         return this.localTranslationFallback(text);
       }
     } catch (e) {
-      console.warn('Edge function fetch failed, using client fallback translation:', e);
       return this.localTranslationFallback(text);
     }
   }
@@ -235,7 +239,7 @@ export class RealtimeTranslator {
       original_text: text,
       detected_lang: detected,
       target_lang: target,
-      translated_text: text, // Direct echo fallback if offline
+      translated_text: text,
       audio_base64: null
     };
   }

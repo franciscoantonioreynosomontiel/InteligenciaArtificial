@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Traductor en tiempo real - Amigo</title>
+  <link rel="icon" type="image/png" href="./assets/img/logopwa.png">
+  <link rel="apple-touch-icon" href="./assets/img/logopwa.png">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+
+  <!-- Import model-viewer web component from Google CDN -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- 3D Canvas / Model Viewer Container -->
+    <div id="canvas-container">
+      <model-viewer
+        id="bot-model-viewer"
+        src="./assets/img/ia.gltf"
+        alt="Personaje 3D"
+        auto-rotate
+        auto-rotate-delay="3000"
+        rotation-per-second="4deg"
+        camera-controls
+        disable-zoom
+        disable-pan
+        shadow-intensity="1"
+        shadow-softness="0.8"
+        exposure="1"
+        touch-action="none"
+        interaction-prompt="none"
+        style="width: 100%; height: 100%; outline: none;"
+      >
+        <!-- Fallback ThreeJS canvas container inside if model-viewer fails -->
+        <div id="three-canvas-fallback" style="width: 100%; height: 100%;"></div>
+      </model-viewer>
+    </div>
+
+    <!-- Top Navigation Header Bar -->
+    <header class="top-bar">
+      <div></div> <!-- Spacer -->
+
+      <div class="top-actions">
+        <!-- Back to Main Home Page -->
+        <a href="./index.html" class="btn-icon" title="Volver al inicio" aria-label="Volver">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </a>
+
+        <!-- Post-it Notes Page Button -->
+        <a href="./notas.html" class="btn-icon" title="Notas Post-it" aria-label="Notas Post-it">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        </a>
+
+        <!-- Learn / Knowledge Base Page Button -->
+        <a href="./aprender.html" class="btn-icon" title="Base de Conocimiento" aria-label="Base de Conocimiento">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        </a>
+      </div>
+    </header>
+
+    <!-- Real-Time Translator Overlay Card -->
+    <div id="translator-card" class="translator-card active">
+      <div class="translator-header">
+        <span class="translator-title">Traductor en tiempo real</span>
+        <div id="translator-status-text" class="translator-status-text stopped">Traductor apagado</div>
+      </div>
+      <div id="translator-log" class="translator-log">
+        <div class="translator-log-entry system">Presiona "Traducir" para iniciar la sesión bidireccional.</div>
+      </div>
+    </div>
+
+    <!-- Floating Translation Control Bar -->
+    <div class="bottom-control-bar">
+      <!-- Single Translation Toggle Button -->
+      <button id="btn-translate" class="btn-action btn-translate-toggle" title="Traducir en tiempo real" aria-label="Traducir">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        <span>Traducir</span>
+      </button>
+    </div>
+
+  </div>
+
+  <script type="module" src="./js/translate.js"></script>
+</body>
+</html>
