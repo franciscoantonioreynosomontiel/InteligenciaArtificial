@@ -9,7 +9,7 @@
 // 2. Detección automatica de idioma por Gemini (Espanol o Ingles).
 // 3. Traduce de Ingles a Espanol (para reproducir en audifonos) o de
 //    Espanol a Ingles (para reproducir por el altavoz hacia la otra persona).
-// 4. Integra opcionalmente ElevenLabs TTS si se configura ELEVENLABS_API_KEY
+// 4. Integra opcionalmente ElevenLabs TTS si se configura 'Voz' o 'ELEVENLABS_API_KEY'
 //    para generar audio en tiempo real de alta calidad.
 // ====================================================================
 
@@ -24,6 +24,7 @@ const corsHeaders: Record<string, string> = {
 interface TranslationRequest {
   text?: string;
   message?: string;
+  voice_id?: string;
   audio_base64?: string;
   source_lang?: string; // Opcional, si viene indicado
 }
@@ -59,7 +60,12 @@ serve(async (req: Request) => {
       ''
     ).trim();
 
-    const elevenLabsApiKey = (Deno.env.get('ELEVENLABS_API_KEY') || '').trim();
+    const elevenLabsApiKey = (
+      Deno.env.get('Voz') ||
+      Deno.env.get('VOZ') ||
+      Deno.env.get('ELEVENLABS_API_KEY') ||
+      ''
+    ).trim();
 
     if (!geminiApiKey) {
       return new Response(
@@ -70,11 +76,11 @@ serve(async (req: Request) => {
       );
     }
 
-    // Promp de traduccion e identificacion automatica con Gemini
+    // Prompt de traduccion e identificacion automatica con Gemini
     const systemInstruction = {
       parts: [
         {
-          text: `Eres un traductor simultaneo profesional y de ultralaja latencia entre Ingles y Espanol.
+          text: `Eres un traductor simultaneo profesional y de ultrabaja latencia entre Ingles y Espanol.
 TUS INSTRUCCIONES STRICTAS:
 1. Analiza la intervencion del usuario.
 2. Si el texto esta en INGLES (o predominantemente en ingles):
@@ -91,7 +97,7 @@ TUS INSTRUCCIONES STRICTAS:
   "target_lang": "es" | "en",
   "translated_text": "Texto traducido aqui"
 }
-5. Queda estrictamente prohibido incluir comentarios, explicaciones, notas de pensamiento o marcas de markdown (\`\`\`json).`
+5. Queda strictly prohibido incluir comentarios, explicaciones, notas de pensamiento o marcas de markdown (\`\`\`json).`
         }
       ]
     };
@@ -154,7 +160,8 @@ TUS INSTRUCCIONES STRICTAS:
     // Si ElevenLabs API Key esta presente, generar voz TTS de baja latencia
     if (elevenLabsApiKey && parsedResult.translated_text) {
       try {
-        const voiceId = parsedResult.target_lang === 'en' ? '21m00Tcm4TlvDq8ikWAM' : 'EXAVITQu4vr4xnSDxMaL'; // Rachel (EN) / Sarah (ES)
+        const defaultVoice = parsedResult.target_lang === 'en' ? '21m00Tcm4TlvDq8ikWAM' : 'EXAVITQu4vr4xnSDxMaL'; // Rachel (EN) / Sarah (ES)
+        const voiceId = body.voice_id || defaultVoice;
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
         const ttsRes = await fetch(ttsUrl, {
           method: 'POST',

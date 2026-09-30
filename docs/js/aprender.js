@@ -208,13 +208,16 @@ function setupVoiceUI() {
   const btnTestVoice = document.getElementById('btn-test-voice');
   const btnSaveVoice = document.getElementById('btn-save-voice');
 
-  let settings = { enabled: false, voice_id: '', voice_name: '' };
+  let settings = { enabled: true, voice_id: '', voice_name: '' };
   try {
     const raw = localStorage.getItem('ia_agent_voice_settings');
-    if (raw) settings = JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      settings = { ...settings, ...parsed };
+    }
   } catch (e) {}
 
-  if (enableCB) enableCB.checked = Boolean(settings.enabled);
+  if (enableCB) enableCB.checked = settings.enabled !== false;
 
   if (btnFetchVoices) {
     btnFetchVoices.addEventListener('click', () => fetchElevenLabsVoices(settings.voice_id));
@@ -226,6 +229,15 @@ function setupVoiceUI() {
 
   if (btnSaveVoice) {
     btnSaveVoice.addEventListener('click', saveVoiceSettings);
+  }
+
+  if (voiceSelect) {
+    voiceSelect.addEventListener('change', () => {
+      if (voiceSelect.value && enableCB) {
+        enableCB.checked = true;
+      }
+      saveVoiceSettings();
+    });
   }
 
   const voiceTabBtn = document.querySelector('.tab-btn[data-tab="tab-voice"]');
@@ -365,8 +377,8 @@ function saveVoiceSettings() {
   const enableCB = document.getElementById('voice-enable-elevenlabs');
   const voiceSelect = document.getElementById('voice-select');
 
-  const enabled = enableCB ? enableCB.checked : false;
   const voice_id = voiceSelect ? voiceSelect.value : '';
+  const enabled = enableCB ? enableCB.checked : Boolean(voice_id);
   const selectedOpt = voiceSelect && voiceSelect.selectedIndex >= 0 ? voiceSelect.options[voiceSelect.selectedIndex] : null;
   const voice_name = selectedOpt ? selectedOpt.textContent.replace(/ \(.*\)$/, '') : '';
 
