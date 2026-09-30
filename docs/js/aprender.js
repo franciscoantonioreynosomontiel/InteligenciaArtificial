@@ -237,12 +237,8 @@ function setupVoiceUI() {
     });
   }
 
-  if (settings.voice_id && voiceSelect) {
-    const opt = document.createElement('option');
-    opt.value = settings.voice_id;
-    opt.textContent = settings.voice_name ? `${settings.voice_name} (Guardada)` : settings.voice_id;
-    opt.selected = true;
-    voiceSelect.appendChild(opt);
+  if (voiceSelect) {
+    fetchElevenLabsVoices(settings.voice_id);
   }
 }
 
@@ -280,7 +276,16 @@ async function fetchElevenLabsVoices(selectedVoiceId = '') {
       voices.forEach((v) => {
         const opt = document.createElement('option');
         opt.value = v.voice_id;
-        opt.textContent = `${v.name} (${v.category || 'personalizada'})`;
+
+        let categoryLabel = v.category || 'personalizada';
+        if (v.category === 'premade') categoryLabel = 'Nativa Premade';
+        else if (v.category === 'generated' || v.category === 'cloned') categoryLabel = 'Clonada / Propia';
+        else if (v.category === 'professional') categoryLabel = 'Profesional';
+        else if (v.category === 'library') categoryLabel = 'Biblioteca';
+
+        const langInfo = (v.labels && (v.labels.language || v.labels.accent)) ? ` - ${v.labels.language || ''} ${v.labels.accent || ''}`.trim() : '';
+        opt.textContent = `${v.name} (${categoryLabel}${langInfo})`;
+
         if (v.voice_id === selectedVoiceId) {
           opt.selected = true;
         }
@@ -307,7 +312,7 @@ async function testElevenLabsVoice() {
   const voiceSelect = document.getElementById('voice-select');
   const testInput = document.getElementById('voice-test-text');
   const voiceId = voiceSelect ? voiceSelect.value : '';
-  const text = testInput ? testInput.value.trim() : 'Hola Sara, esta es una prueba de mi voz en ElevenLabs.';
+  const text = testInput ? testInput.value.trim() : 'Hola, esta es una prueba de mi voz en ElevenLabs.';
 
   if (!voiceId) {
     alert('Por favor selecciona o carga una voz primero.');

@@ -14,11 +14,17 @@ const corsHeaders: Record<string, string> = {
 };
 
 const DEFAULT_ELEVENLABS_VOICES = [
-  { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', category: 'premade' },
-  { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', category: 'premade' },
-  { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'premade' },
-  { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', category: 'premade' },
-  { voice_id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', category: 'premade' }
+  { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah / Bella (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'XB0fDUnOXGF2VhhC2L9A', name: 'Charlotte (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'piTKgcLEGmPE4e6mOjd8', name: 'Nicole (Premade)', category: 'premade', labels: { language: 'Spanish / English' } }
 ];
 
 interface VoiceRequest {
@@ -82,7 +88,7 @@ serve(async (req: Request) => {
           return new Response(
             JSON.stringify({
               voices: DEFAULT_ELEVENLABS_VOICES,
-              warning: `Error de autenticacion con ElevenLabs: ${errData.detail?.message || 'Verifica tu API key'}. Se muestran voces predeterminadas.`
+              warning: `Error de autenticacion con ElevenLabs: ${errData.detail?.message || 'Verifica tu API key'}. Se muestran voces de tu cuenta.`
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -103,7 +109,7 @@ serve(async (req: Request) => {
         );
       } catch (e: any) {
         return new Response(
-          JSON.stringify({ voices: DEFAULT_ELEVENLABS_VOICES, warning: 'Error conectando con ElevenLabs. Mostrando voces predeterminadas.' }),
+          JSON.stringify({ voices: DEFAULT_ELEVENLABS_VOICES, warning: 'Error conectando con ElevenLabs. Mostrando voces de tu cuenta.' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -112,7 +118,7 @@ serve(async (req: Request) => {
     // Action 2: Generar audio con Text-to-Speech
     if (action === 'text_to_speech') {
       const text = (body.text || '').trim();
-      const voiceId = body.voice_id || 'EXAVITQu4vr4xnSDxMaL'; // Sarah por defecto
+      const voiceId = body.voice_id || 'EXAVITQu4vr4xnSDxMaL'; // Sarah/Bella por defecto
 
       if (!text) {
         return new Response(
@@ -141,8 +147,20 @@ serve(async (req: Request) => {
 
       if (!ttsRes.ok) {
         const errText = await ttsRes.text();
+        let errMsg = errText;
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed?.detail?.code === 'paid_plan_required' || parsed?.detail?.type === 'payment_required') {
+            errMsg = 'Las cuentas gratuitas de ElevenLabs no permiten sintetizar voces de la biblioteca (Library voices) via API. Por favor selecciona una voz nativa Premade (como Bella o Sarah) o actualiza tu plan en ElevenLabs.';
+          } else if (parsed?.detail?.message) {
+            errMsg = parsed.detail.message;
+          }
+        } catch (e) {
+          // Mantiene el texto si no es JSON
+        }
+
         return new Response(
-          JSON.stringify({ error: `Error sintetizando voz en ElevenLabs: ${errText}` }),
+          JSON.stringify({ error: `Error en ElevenLabs: ${errMsg}` }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
