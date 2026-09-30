@@ -43,6 +43,7 @@
           <button class="tab-btn" data-tab="tab-sheet">Sheet / URL</button>
           <button class="tab-btn" data-tab="tab-file">Archivo</button>
           <button class="tab-btn" data-tab="tab-algorithms">Algoritmos</button>
+          <button class="tab-btn" data-tab="tab-voice">Voz ElevenLabs</button>
         </div>
 
         <!-- Tab 1: Formulario FAQ -->
@@ -213,6 +214,36 @@
           </div>
 
           <button id="btn-add-algorithm" class="btn-primary-action">Guardar Regla</button>
+        </div>
+
+        <!-- Tab 5: Configurar Voz ElevenLabs -->
+        <div id="tab-voice" class="tab-content">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="voice-enable-elevenlabs">
+              <span>Usar voz de ElevenLabs para respuestas habladas</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="voice-select">Voz de ElevenLabs</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="voice-select" class="form-input custom-select flex-1">
+                <option value="">Selecciona una voz</option>
+              </select>
+              <button type="button" id="btn-fetch-voices" class="btn-secondary-action" style="white-space: nowrap; width: auto; padding: 0 16px;">Cargar Voces</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="voice-test-text">Texto de prueba</label>
+            <input type="text" id="voice-test-text" class="form-input" value="Hola Sara, esta es una prueba de mi voz en ElevenLabs.">
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 12px;">
+            <button type="button" id="btn-test-voice" class="btn-secondary-action" style="flex: 1;">Probar Voz</button>
+            <button type="button" id="btn-save-voice" class="btn-primary-action" style="flex: 1;">Guardar Configuracion</button>
+          </div>
         </div>
 
       </div>

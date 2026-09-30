@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilters();
   setupFileInputDisplay();
   setupAlgorithmUI();
+  setupVoiceUI();
   renderKnowledgeList();
 
   // Load latest data from Supabase
@@ -198,6 +199,177 @@ function setupTabs() {
       document.getElementById(targetId)?.classList.add('active');
     });
   });
+}
+
+function setupVoiceUI() {
+  const enableCB = document.getElementById('voice-enable-elevenlabs');
+  const voiceSelect = document.getElementById('voice-select');
+  const btnFetchVoices = document.getElementById('btn-fetch-voices');
+  const btnTestVoice = document.getElementById('btn-test-voice');
+  const btnSaveVoice = document.getElementById('btn-save-voice');
+
+  let settings = { enabled: false, voice_id: '', voice_name: '' };
+  try {
+    const raw = localStorage.getItem('ia_agent_voice_settings');
+    if (raw) settings = JSON.parse(raw);
+  } catch (e) {}
+
+  if (enableCB) enableCB.checked = Boolean(settings.enabled);
+
+  if (btnFetchVoices) {
+    btnFetchVoices.addEventListener('click', () => fetchElevenLabsVoices(settings.voice_id));
+  }
+
+  if (btnTestVoice) {
+    btnTestVoice.addEventListener('click', testElevenLabsVoice);
+  }
+
+  if (btnSaveVoice) {
+    btnSaveVoice.addEventListener('click', saveVoiceSettings);
+  }
+
+  const voiceTabBtn = document.querySelector('.tab-btn[data-tab="tab-voice"]');
+  if (voiceTabBtn) {
+    voiceTabBtn.addEventListener('click', () => {
+      if (voiceSelect && voiceSelect.options.length <= 1) {
+        fetchElevenLabsVoices(settings.voice_id);
+      }
+    });
+  }
+
+  if (settings.voice_id && voiceSelect) {
+    const opt = document.createElement('option');
+    opt.value = settings.voice_id;
+    opt.textContent = settings.voice_name ? `${settings.voice_name} (Guardada)` : settings.voice_id;
+    opt.selected = true;
+    voiceSelect.appendChild(opt);
+  }
+}
+
+async function fetchElevenLabsVoices(selectedVoiceId = '') {
+  const voiceSelect = document.getElementById('voice-select');
+  if (!voiceSelect) return;
+
+  voiceSelect.innerHTML = '<option value="">Cargando voces desde ElevenLabs...</option>';
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ action: 'get_voices' })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.error) {
+        showToast(data.error);
+        voiceSelect.innerHTML = '<option value="">Error al cargar voces. Verifica la secret Voz.</option>';
+        return;
+      }
+
+      const voices = data.voices || [];
+      if (voices.length === 0) {
+        voiceSelect.innerHTML = '<option value="">No se encontraron voces disponibles</option>';
+        return;
+      }
+
+      voiceSelect.innerHTML = '';
+      voices.forEach((v) => {
+        const opt = document.createElement('option');
+        opt.value = v.voice_id;
+        opt.textContent = `${v.name} (${v.category || 'personalizada'})`;
+        if (v.voice_id === selectedVoiceId) {
+          opt.selected = true;
+        }
+        voiceSelect.appendChild(opt);
+      });
+
+      showToast('Voces de ElevenLabs cargadas');
+    } else {
+      voiceSelect.innerHTML = '<option value="">Error de conexion con la Edge Function</option>';
+      showToast('Error cargando voces');
+    }
+  } catch (e) {
+    console.error('Error fetching voices:', e);
+    voiceSelect.innerHTML = '<option value="">Error al conectar con la API de Voz</option>';
+    showToast('Error de conexion');
+  }
+}
+
+async function testElevenLabsVoice() {
+  const voiceSelect = document.getElementById('voice-select');
+  const testInput = document.getElementById('voice-test-text');
+  const voiceId = voiceSelect ? voiceSelect.value : '';
+  const text = testInput ? testInput.value.trim() : 'Hola Sara, esta es una prueba de mi voz en ElevenLabs.';
+
+  if (!voiceId) {
+    alert('Por favor selecciona o carga una voz primero.');
+    return;
+  }
+
+  if (!text) {
+    alert('Por favor ingresa un texto de prueba.');
+    return;
+  }
+
+  showToast('Sintetizando voz de prueba...');
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        action: 'text_to_speech',
+        text: text,
+        voice_id: voiceId
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.error) {
+        alert('Error: ' + data.error);
+        return;
+      }
+
+      if (data.audio_base64) {
+        const audio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
+        audio.play().catch((err) => console.warn('Audio playback error:', err));
+        showToast('Reproduciendo audio de prueba');
+      }
+    } else {
+      alert('Error de red al probar la voz.');
+    }
+  } catch (e) {
+    console.error('Error testing voice:', e);
+    alert('Ocurrio un error al intentar probar la voz.');
+  }
+}
+
+function saveVoiceSettings() {
+  const enableCB = document.getElementById('voice-enable-elevenlabs');
+  const voiceSelect = document.getElementById('voice-select');
+
+  const enabled = enableCB ? enableCB.checked : false;
+  const voice_id = voiceSelect ? voiceSelect.value : '';
+  const selectedOpt = voiceSelect && voiceSelect.selectedIndex >= 0 ? voiceSelect.options[voiceSelect.selectedIndex] : null;
+  const voice_name = selectedOpt ? selectedOpt.textContent.replace(/ \(.*\)$/, '') : '';
+
+  const settings = {
+    enabled,
+    voice_id,
+    voice_name,
+    updatedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem('ia_agent_voice_settings', JSON.stringify(settings));
+  showToast('Configuracion de voz guardada exitosamente');
 }
 
 function setupFilters() {
