@@ -17,7 +17,18 @@ let activeRecordingSource = null; // 'main' or 'chat'
 let currentAttachment = null; // { base64, url }
 let recognition = null;
 let synth = window.speechSynthesis;
+let currentElevenAudio = null;
 let deferredInstallPrompt = null;
+
+function stopSpeech() {
+  if (synth) synth.cancel();
+  if (currentElevenAudio) {
+    currentElevenAudio.pause();
+    currentElevenAudio.currentTime = 0;
+    currentElevenAudio = null;
+  }
+  if (scene3D) scene3D.setSpeakingState(false);
+}
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
@@ -386,8 +397,8 @@ function setupEventListeners() {
       btnToggleSpeech.classList.toggle('active', mainSpeechEnabled);
       const chatDrawer = document.getElementById('chat-drawer');
       const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
-      if (!isChatOpen && !mainSpeechEnabled && synth) {
-        synth.cancel();
+      if (!isChatOpen && !mainSpeechEnabled) {
+        stopSpeech();
       }
       showToast(mainSpeechEnabled ? 'Voz principal activada' : 'Voz principal desactivada');
     });
@@ -401,8 +412,8 @@ function setupEventListeners() {
       btnChatToggleSpeech.classList.toggle('active', chatSpeechEnabled);
       const chatDrawer = document.getElementById('chat-drawer');
       const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
-      if (isChatOpen && !chatSpeechEnabled && synth) {
-        synth.cancel();
+      if (isChatOpen && !chatSpeechEnabled) {
+        stopSpeech();
       }
       showToast(chatSpeechEnabled ? 'Voz de chat activada' : 'Voz de chat desactivada');
     });
@@ -457,9 +468,9 @@ function setupEventListeners() {
       chatDrawer.classList.toggle('open');
       if (chatDrawer.classList.contains('open')) {
         hideThoughtBubble();
-        if (!chatSpeechEnabled && synth) synth.cancel();
+        if (!chatSpeechEnabled) stopSpeech();
       } else {
-        if (!mainSpeechEnabled && synth) synth.cancel();
+        if (!mainSpeechEnabled) stopSpeech();
       }
     });
   }
@@ -467,7 +478,7 @@ function setupEventListeners() {
   if (btnCloseChat && chatDrawer) {
     btnCloseChat.addEventListener('click', () => {
       chatDrawer.classList.remove('open');
-      if (!mainSpeechEnabled && synth) synth.cancel();
+      if (!mainSpeechEnabled) stopSpeech();
     });
   }
 
@@ -812,7 +823,7 @@ function stopAlarmAudio() {
 
 function stopActiveAlarm() {
   stopAlarmAudio();
-  synth.cancel();
+  stopSpeech();
 
   const alarmModal = document.getElementById('alarm-modal');
   if (alarmModal) {
@@ -827,7 +838,7 @@ function stopActiveAlarm() {
 
 function snoozeActiveAlarm(minutes = 5) {
   stopAlarmAudio();
-  synth.cancel();
+  stopSpeech();
 
   const alarmModal = document.getElementById('alarm-modal');
   if (alarmModal) {
@@ -999,26 +1010,84 @@ function appendChatMessage(text, sender, imageBase64 = null) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function speakResponse(text, isVoiceBubble = false) {
+async function speakResponse(text, isVoiceBubble = false) {
   const chatDrawer = document.getElementById('chat-drawer');
   const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
 
   // Strict check on voice toggles
   if (isChatOpen && !chatSpeechEnabled) {
-    if (synth) synth.cancel();
+    stopSpeech();
     return;
   }
   if (!isChatOpen && !mainSpeechEnabled) {
-    if (synth) synth.cancel();
+    stopSpeech();
     return;
   }
 
+  stopSpeech();
+
+  const cleanText = (text || '').replace(/[*_#`~]/g, '').trim();
+  if (!cleanText) return;
+
+  // Check ElevenLabs settings
+  let voiceSettings = null;
+  try {
+    const raw = localStorage.getItem('ia_agent_voice_settings');
+    if (raw) voiceSettings = JSON.parse(raw);
+  } catch (e) {}
+
+  if (voiceSettings && voiceSettings.enabled && voiceSettings.voice_id) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          action: 'text_to_speech',
+          text: cleanText,
+          voice_id: voiceSettings.voice_id
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.audio_base64) {
+          currentElevenAudio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
+
+          if (scene3D) scene3D.setSpeakingState(true);
+
+          currentElevenAudio.onended = () => {
+            if (scene3D) scene3D.setSpeakingState(false);
+            if (isVoiceBubble) {
+              setTimeout(() => hideThoughtBubble(), 2000);
+            }
+          };
+
+          currentElevenAudio.onerror = () => {
+            if (scene3D) scene3D.setSpeakingState(false);
+            speakResponseWebSpeech(cleanText, isVoiceBubble);
+          };
+
+          currentElevenAudio.play().catch(() => {
+            speakResponseWebSpeech(cleanText, isVoiceBubble);
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('ElevenLabs TTS call failed, falling back to Web Speech API:', e);
+    }
+  }
+
+  // Fallback to standard Web Speech API
+  speakResponseWebSpeech(cleanText, isVoiceBubble);
+}
+
+function speakResponseWebSpeech(cleanText, isVoiceBubble) {
   if (!synth) return;
 
-  synth.cancel(); // Cancel any ongoing speech
-
-  // Strip markdown formatting for cleaner TTS
-  const cleanText = text.replace(/[*_#`~]/g, '');
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'es-ES';
   utterance.rate = 1.0;
