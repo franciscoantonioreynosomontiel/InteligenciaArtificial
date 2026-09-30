@@ -11,17 +11,17 @@ const corsHeaders: Record<string, string> = {
 };
 
 const DEFAULT_ELEVENLABS_VOICES = [
-  { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah / Bella (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'XB0fDUnOXGF2VhhC2L9A', name: 'Charlotte (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam (Premade)', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'piTKgcLEGmPE4e6mOjd8', name: 'Nicole (Premade)', category: 'premade', labels: { language: 'Spanish / English' } }
+  { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah / Bella', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'XB0fDUnOXGF2VhhC2L9A', name: 'Charlotte', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', category: 'premade', labels: { language: 'Spanish / English' } },
+  { voice_id: 'piTKgcLEGmPE4e6mOjd8', name: 'Nicole', category: 'premade', labels: { language: 'Spanish / English' } }
 ];
 
 interface VoiceRequest {
@@ -92,16 +92,19 @@ serve(async (req: Request) => {
         }
 
         const voicesData = await voicesRes.json();
-        const voicesList = (voicesData.voices || []).map((v: any) => ({
-          voice_id: v.voice_id,
-          name: v.name,
-          category: v.category,
-          preview_url: v.preview_url,
-          labels: v.labels
-        }));
+        // Filtrar voces de la biblioteca (library) porque ElevenLabs no permite sintetizarlas via API en planes gratuitos
+        const voicesList = (voicesData.voices || [])
+          .filter((v: any) => v.category !== 'library')
+          .map((v: any) => ({
+            voice_id: v.voice_id,
+            name: v.name,
+            category: v.category,
+            preview_url: v.preview_url,
+            labels: v.labels
+          }));
 
         return new Response(
-          JSON.stringify({ voices: voicesList }),
+          JSON.stringify({ voices: voicesList.length > 0 ? voicesList : DEFAULT_ELEVENLABS_VOICES }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } catch (e: any) {
@@ -148,7 +151,7 @@ serve(async (req: Request) => {
         try {
           const parsed = JSON.parse(errText);
           if (parsed?.detail?.code === 'paid_plan_required' || parsed?.detail?.type === 'payment_required') {
-            errMsg = 'Las cuentas gratuitas de ElevenLabs no permiten sintetizar voces de la biblioteca (Library voices) via API. Por favor selecciona una voz nativa Premade (como Bella o Sarah) o actualiza tu plan en ElevenLabs.';
+            errMsg = 'Las cuentas gratuitas de ElevenLabs no permiten sintetizar voces de la biblioteca (Library voices) via API. Por favor selecciona una voz nativa Premade (como Bella o Sarah) o creada en tu cuenta.';
           } else if (parsed?.detail?.message) {
             errMsg = parsed.detail.message;
           }

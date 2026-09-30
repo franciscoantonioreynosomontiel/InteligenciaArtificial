@@ -203,6 +203,15 @@ export class RealtimeTranslator {
   async callTranslationEdgeFunction(text) {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${TRANSLATE_FUNCTION_NAME}`;
 
+    let voiceId = null;
+    try {
+      const raw = localStorage.getItem('ia_agent_voice_settings');
+      if (raw) {
+        const settings = JSON.parse(raw);
+        if (settings && settings.voice_id) voiceId = settings.voice_id;
+      }
+    } catch (e) {}
+
     try {
       const res = await fetch(edgeUrl, {
         method: 'POST',
@@ -210,7 +219,7 @@ export class RealtimeTranslator {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, voice_id: voiceId })
       });
 
       if (res.ok) {

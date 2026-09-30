@@ -1036,7 +1036,9 @@ async function speakResponse(text, isVoiceBubble = false) {
     if (raw) voiceSettings = JSON.parse(raw);
   } catch (e) {}
 
-  if (voiceSettings && voiceSettings.enabled && voiceSettings.voice_id) {
+  const isElevenLabsActive = voiceSettings && voiceSettings.voice_id && (voiceSettings.enabled !== false);
+
+  if (isElevenLabsActive) {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
         method: 'POST',
@@ -1074,6 +1076,8 @@ async function speakResponse(text, isVoiceBubble = false) {
             speakResponseWebSpeech(cleanText, isVoiceBubble);
           });
           return;
+        } else if (data && data.error) {
+          console.warn('ElevenLabs TTS returned error:', data.error);
         }
       }
     } catch (e) {
