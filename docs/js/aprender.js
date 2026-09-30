@@ -287,7 +287,11 @@ async function fetchElevenLabsVoices(selectedVoiceId = '') {
         voiceSelect.appendChild(opt);
       });
 
-      showToast('Voces de ElevenLabs cargadas');
+      if (data.warning) {
+        showToast(data.warning);
+      } else {
+        showToast('Voces de ElevenLabs cargadas');
+      }
     } else {
       voiceSelect.innerHTML = '<option value="">Error de conexion con la Edge Function</option>';
       showToast('Error cargando voces');

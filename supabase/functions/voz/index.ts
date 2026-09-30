@@ -1,8 +1,5 @@
 // ====================================================================
-// EDGE FUNCTION PARA VOZ ELEVENLABS (voz.ts)
-// ====================================================================
-// Esta Edge Function se encarga de conectar con la API de ElevenLabs
-// utilizando la secret 'Voz' configurada en Supabase.
+// SUPABASE EDGE FUNCTION PARA VOZ ELEVENLABS (supabase/functions/voz/index.ts)
 // ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
