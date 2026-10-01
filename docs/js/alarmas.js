@@ -1,4 +1,5 @@
 // Dedicated Alarms View Logic
+import './app.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
@@ -43,8 +44,9 @@ async function fetchSupabaseAlarms() {
     if (!error && Array.isArray(data)) {
       const allRules = getLocalAlarms();
       const nonAlarms = allRules.filter((r) => r.type !== 'alarma');
+      const localAlarms = allRules.filter((r) => r.type === 'alarma');
 
-      const alarmRules = data.map((a) => ({
+      const dbAlarms = data.map((a) => ({
         id: 'alg_' + a.id,
         db_id: a.id,
         type: 'alarma',
@@ -64,7 +66,17 @@ async function fetchSupabaseAlarms() {
         createdAt: a.created_at
       }));
 
-      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify([...nonAlarms, ...alarmRules]));
+      const mergedAlarms = [...localAlarms];
+      dbAlarms.forEach((dbA) => {
+        const idx = mergedAlarms.findIndex((lA) => lA.db_id === dbA.db_id || (lA.name && lA.name.toLowerCase() === dbA.name.toLowerCase()));
+        if (idx !== -1) {
+          mergedAlarms[idx] = { ...dbA, id: mergedAlarms[idx].id };
+        } else {
+          mergedAlarms.push(dbA);
+        }
+      });
+
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify([...nonAlarms, ...mergedAlarms]));
       renderAlarmsList();
     }
   } catch (e) {
@@ -164,7 +176,6 @@ async function toggleAlarmActive(id, isActive) {
 }
 
 async function deleteAlarm(id) {
-  if (!confirm('¿Deseas eliminar esta alarma?')) return;
   let rules = getLocalAlarms();
   const target = rules.find((r) => r.id === id);
   rules = rules.filter((r) => r.id !== id);
@@ -181,33 +192,11 @@ async function deleteAlarm(id) {
   }
 }
 
-async function editAlarm(alarm) {
-  const newName = prompt('Editar título de la alarma:', alarm.name);
-  if (newName === null) return;
-
-  const newTime = prompt('Editar hora (HH:MM):', alarm.time);
-  if (newTime === null) return;
-
-  const newMsg = prompt('Editar mensaje:', alarm.message);
-  if (newMsg === null) return;
-
-  const rules = getLocalAlarms();
-  const idx = rules.findIndex((r) => r.id === alarm.id);
-  if (idx !== -1) {
-    rules[idx].name = newName.trim() || alarm.name;
-    rules[idx].time = newTime.trim() || alarm.time;
-    rules[idx].message = newMsg.trim() || alarm.message;
-    saveLocalAlarms(rules);
-
-    try {
-      if (alarm.db_id) {
-        await supabase.from('alarms_reminders').update({
-          name: rules[idx].name,
-          time: rules[idx].time,
-          message: rules[idx].message
-        }).eq('id', alarm.db_id);
-      }
-    } catch (e) {}
+function editAlarm(alarm) {
+  if (window.openRuleEditorModal) {
+    window.openRuleEditorModal(alarm, () => {
+      renderAlarmsList();
+    });
   }
 }
 

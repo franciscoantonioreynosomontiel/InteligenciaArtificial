@@ -1,4 +1,5 @@
 // Post-it Sticky Notes Management Logic
+import './app.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { uploadToCloudinary } from './cloudinary.js';
 
@@ -76,7 +77,6 @@ function renderNotesBoard() {
 
   board.innerHTML = '';
 
-  // 1. Create Post-it "+" Button Card (Exact same size as a post-it note)
   const addCard = document.createElement('div');
   addCard.className = 'postit-card add-postit-card';
   addCard.innerHTML = `
@@ -88,7 +88,6 @@ function renderNotesBoard() {
   addCard.addEventListener('click', () => openNoteModal());
   board.appendChild(addCard);
 
-  // 2. Render existing Post-it Notes
   notes.forEach((note) => {
     const card = document.createElement('div');
     card.className = 'postit-card';
@@ -141,7 +140,6 @@ function renderNotesBoard() {
       </div>
     `;
 
-    // Interactive Checkboxes on Card
     card.querySelectorAll('.postit-card-checkbox').forEach((cb) => {
       cb.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -207,7 +205,6 @@ function setupDrawingCanvas() {
     });
   }
 
-  // Pointer/Touch/Mouse Drawing listeners
   const startDraw = (e) => {
     isDrawing = true;
     const rect = canvasElem.getBoundingClientRect();
@@ -259,7 +256,6 @@ function setupModalEvents() {
     btnClose.addEventListener('click', () => modal.classList.remove('open'));
   }
 
-  // Color Swatches
   const colorSwatches = document.querySelectorAll('.color-swatch');
   colorSwatches.forEach((swatch) => {
     swatch.addEventListener('click', () => {
@@ -269,7 +265,6 @@ function setupModalEvents() {
     });
   });
 
-  // Image input
   if (fileInput) {
     fileInput.addEventListener('change', () => {
       if (fileInput.files && fileInput.files[0]) {
@@ -330,7 +325,6 @@ function setupModalEvents() {
     btnSave.addEventListener('click', handleSaveNote);
   }
 
-  // View Note Modal Listeners
   const viewModal = document.getElementById('note-view-modal');
   const btnCloseView = document.getElementById('btn-close-view-modal');
   const btnCloseViewBottom = document.getElementById('btn-close-view-modal-bottom');
@@ -486,7 +480,6 @@ function openNoteModal(noteToEdit = null) {
   const fileInput = document.getElementById('note-image-input');
   const nameDisplay = document.getElementById('note-image-name');
 
-  // Clear previous canvas
   if (canvasCtx && canvasElem) {
     canvasCtx.clearRect(0, 0, canvasElem.width, canvasElem.height);
   }
@@ -553,10 +546,7 @@ async function handleSaveNote() {
   const title = titleInput.value.trim();
   const content = contentInput.value.trim();
 
-  if (!title) {
-    alert('Por favor especifica un nombre para la nota.');
-    return;
-  }
+  if (!title) return;
 
   let width = 260;
   let height = 260;
@@ -566,7 +556,6 @@ async function handleSaveNote() {
     height = parseInt(parts[1]) || 260;
   }
 
-  // Check if canvas has drawing content
   let drawingData = null;
   if (canvasElem) {
     const pixelBuffer = new Uint32Array(
@@ -669,7 +658,6 @@ async function syncUpdateNoteToSupabase(note) {
 }
 
 async function deleteNote(id) {
-  if (!confirm('¿Estás seguro de eliminar esta nota?')) return;
   const target = notes.find((n) => n.id === id);
   notes = notes.filter((n) => n.id !== id);
   saveLocalNotes();

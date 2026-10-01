@@ -1,4 +1,5 @@
 // Knowledge Management Logic (Aprender)
+import './app.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
@@ -113,7 +114,6 @@ function setupAlgorithmUI() {
     updateVisibility();
   }
 
-  // Segmented Schedule Buttons
   const segmentScheduleBtns = document.querySelectorAll('.segment-schedule');
   const daysContainer = document.getElementById('rule-days-container');
   const dateContainer = document.getElementById('rule-date-container');
@@ -134,7 +134,6 @@ function setupAlgorithmUI() {
     });
   });
 
-  // Day Chips Toggle
   const dayChips = document.querySelectorAll('.day-chip');
   dayChips.forEach((chip) => {
     chip.addEventListener('click', () => {
@@ -142,7 +141,6 @@ function setupAlgorithmUI() {
     });
   });
 
-  // Time Range Checkbox Toggle
   const useRangeCheckbox = document.getElementById('rule-use-range');
   const singleTimeContainer = document.getElementById('rule-single-time-container');
   const rangeContainer = document.getElementById('rule-range-container');
@@ -162,7 +160,6 @@ function setupAlgorithmUI() {
     updateTimeVisibility();
   }
 
-  // Sound File Loader
   const soundInput = document.getElementById('rule-sound-input');
   const soundNameDisplay = document.getElementById('rule-sound-name');
   if (soundInput && soundNameDisplay) {
@@ -316,12 +313,12 @@ async function testElevenLabsVoice() {
   const text = testInput ? testInput.value.trim() : 'Hola, esta es una prueba de mi voz en ElevenLabs.';
 
   if (!voiceId) {
-    alert('Por favor selecciona una voz primero.');
+    showToast('Selecciona una voz primero');
     return;
   }
 
   if (!text) {
-    alert('Por favor ingresa un texto de prueba.');
+    showToast('Ingresa un texto de prueba');
     return;
   }
 
@@ -344,7 +341,7 @@ async function testElevenLabsVoice() {
     if (res.ok) {
       const data = await res.json();
       if (data.error) {
-        alert('Error: ' + data.error);
+        showToast(data.error);
         return;
       }
 
@@ -354,11 +351,11 @@ async function testElevenLabsVoice() {
         showToast('Reproduciendo audio de prueba');
       }
     } else {
-      alert('Error de red al probar la voz.');
+      showToast('Error de red al probar la voz');
     }
   } catch (e) {
     console.error('Error testing voice:', e);
-    alert('Ocurrió un error al intentar probar la voz.');
+    showToast('Error al intentar probar la voz');
   }
 }
 
@@ -430,7 +427,7 @@ async function handleAddFaq() {
   const answer = answerInput.value.trim();
 
   if (!question || !answer) {
-    alert('Por favor completa el titulo y la descripcion.');
+    showToast('Completa el título y la descripción');
     return;
   }
 
@@ -458,7 +455,7 @@ async function handleAddSheet() {
   const desc = descInput.value.trim();
 
   if (!title || !url) {
-    alert('Por favor indica el titulo y la URL.');
+    showToast('Indica el título y la URL');
     return;
   }
 
@@ -501,7 +498,7 @@ async function handleUploadFile() {
   const desc = descInput.value.trim();
 
   if (!file) {
-    alert('Por favor selecciona un archivo para cargar.');
+    showToast('Selecciona un archivo para cargar');
     return;
   }
 
@@ -540,7 +537,7 @@ async function handleAddAlgorithm() {
   const message = msgInput.value.trim();
 
   if (!name) {
-    alert('Por favor especifica un titulo para la regla / recordatorio.');
+    showToast('Especifica un título para la regla / recordatorio');
     return;
   }
 
@@ -569,9 +566,9 @@ async function handleAddAlgorithm() {
     days: activeDays,
     date: currentScheduleMode === 'date' ? dateInput.value : null,
     time: timeInput.value || '08:00',
-    useRange: useRangeCB.checked,
-    rangeStart: useRangeCB.checked ? rangeStart.value : null,
-    rangeEnd: useRangeCB.checked ? rangeEnd.value : null,
+    useRange: useRangeCB ? useRangeCB.checked : false,
+    rangeStart: (useRangeCB && useRangeCB.checked) ? rangeStart.value : null,
+    rangeEnd: (useRangeCB && useRangeCB.checked) ? rangeEnd.value : null,
     sound: currentRuleType === 'alarma' ? (uploadedSoundData ? uploadedSoundData.name : 'Predeterminado') : null,
     soundUrl: currentRuleType === 'alarma' ? (uploadedSoundData ? uploadedSoundData.dataUrl : null) : null,
     volume: currentRuleType === 'alarma' ? parseInt(volumeRange.value) / 100 : 0.8,
@@ -724,14 +721,14 @@ function renderKnowledgeList() {
         </div>
         <div class="item-actions">
           ${item.soundUrl ? `<button class="btn-edit btn-play-sound" data-id="${item.id}">Escuchar Sonido</button>` : ''}
-          <button class="btn-edit" data-id="${item.id}">Editar</button>
-          <button class="btn-delete" data-id="${item.id}">Eliminar</button>
+          <button class="btn-edit btn-edit-rule" data-id="${item.id}">Editar</button>
+          <button class="btn-delete btn-delete-rule" data-id="${item.id}">Eliminar</button>
         </div>
       `;
 
       div.querySelector('.toggle-rule-active').addEventListener('change', (e) => toggleRuleActive(item.id, e.target.checked));
-      div.querySelector('.btn-delete').addEventListener('click', () => deleteAlgorithmItem(item.id));
-      div.querySelector('.btn-edit').addEventListener('click', () => editAlgorithmItem(item));
+      div.querySelector('.btn-delete-rule').addEventListener('click', () => deleteAlgorithmItem(item.id));
+      div.querySelector('.btn-edit-rule').addEventListener('click', () => editAlgorithmItem(item));
       if (item.soundUrl) {
         div.querySelector('.btn-play-sound')?.addEventListener('click', () => {
           const audio = new Audio(item.soundUrl);
@@ -748,13 +745,11 @@ function renderKnowledgeList() {
         </div>
         <div class="knowledge-item-desc">${escapeHtml((item.content || '').substring(0, 140))}${(item.content || '').length > 140 ? '...' : ''}</div>
         <div class="item-actions">
-          <button class="btn-edit" data-id="${item.id}">Editar</button>
-          <button class="btn-delete" data-id="${item.id}">Eliminar</button>
+          <button class="btn-delete btn-delete-kitem" data-id="${item.id}">Eliminar</button>
         </div>
       `;
 
-      div.querySelector('.btn-delete').addEventListener('click', () => deleteItem(item.id));
-      div.querySelector('.btn-edit').addEventListener('click', () => editItem(item));
+      div.querySelector('.btn-delete-kitem').addEventListener('click', () => deleteItem(item.id));
     }
 
     container.appendChild(div);
@@ -776,14 +771,11 @@ async function toggleRuleActive(id, isActive) {
       } else {
         await supabase.from('alarms_reminders').update({ active: isActive }).eq('name', targetRule.name);
       }
-    } catch (e) {
-      console.warn('Supabase toggle active sync error:', e);
-    }
+    } catch (e) {}
   }
 }
 
 async function deleteAlgorithmItem(id) {
-  if (!confirm('Esta seguro de eliminar este algoritmo/regla?')) return;
   let rules = getLocalAlarms();
   const target = rules.find((r) => r.id === id);
   rules = rules.filter((r) => r.id !== id);
@@ -797,58 +789,19 @@ async function deleteAlgorithmItem(id) {
       } else {
         await supabase.from('alarms_reminders').delete().eq('name', target.name);
       }
-    } catch (e) {
-      console.warn('Supabase delete alarm sync error:', e);
-    }
+    } catch (e) {}
   }
 }
 
-async function editAlgorithmItem(rule) {
-  const newName = prompt('Editar nombre de la regla:', rule.name || rule.title);
-  if (newName === null) return;
-
-  const newMsg = prompt('Editar mensaje hablado:', rule.message);
-  if (newMsg === null) return;
-
-  const newTime = prompt('Editar hora de ejecucion (HH:MM):', rule.time);
-  if (newTime === null) return;
-
-  let rules = getLocalAlarms();
-  const index = rules.findIndex((r) => r.id === rule.id);
-  if (index !== -1) {
-    const updatedName = newName.trim() || rule.name;
-    const updatedMsg = newMsg.trim() || rule.message;
-    const updatedTime = newTime.trim() || rule.time;
-
-    rules[index].name = updatedName;
-    rules[index].title = updatedName;
-    rules[index].message = updatedMsg;
-    rules[index].time = updatedTime;
-    saveLocalAlarms(rules);
-    showToast('Regla actualizada');
-
-    try {
-      if (rule.db_id) {
-        await supabase.from('alarms_reminders').update({
-          name: updatedName,
-          message: updatedMsg,
-          time: updatedTime
-        }).eq('id', rule.db_id);
-      } else {
-        await supabase.from('alarms_reminders').update({
-          name: updatedName,
-          message: updatedMsg,
-          time: updatedTime
-        }).eq('name', rule.name);
-      }
-    } catch (e) {
-      console.warn('Supabase edit alarm sync error:', e);
-    }
+function editAlgorithmItem(rule) {
+  if (window.openRuleEditorModal) {
+    window.openRuleEditorModal(rule, () => {
+      renderKnowledgeList();
+    });
   }
 }
 
 async function deleteItem(id) {
-  if (!confirm('Esta seguro de eliminar este registro?')) return;
   let items = getLocalKnowledge();
   const target = items.find((item) => item.id === id);
   items = items.filter((item) => item.id !== id);
@@ -862,45 +815,7 @@ async function deleteItem(id) {
       } else {
         await supabase.from('knowledge').delete().eq('title', target.title);
       }
-    } catch (e) {
-      console.warn('Supabase delete item sync error:', e);
-    }
-  }
-}
-
-async function editItem(item) {
-  const newTitle = prompt('Editar titulo:', item.title);
-  if (newTitle === null) return;
-
-  const newContent = prompt('Editar descripcion / contenido:', item.content);
-  if (newContent === null) return;
-
-  let items = getLocalKnowledge();
-  const index = items.findIndex((i) => i.id === item.id);
-  if (index !== -1) {
-    const updatedTitle = newTitle.trim() || item.title;
-    const updatedContent = newContent.trim() || item.content;
-
-    items[index].title = updatedTitle;
-    items[index].content = updatedContent;
-    saveLocalKnowledge(items);
-    showToast('Registro actualizado');
-
-    try {
-      if (item.db_id) {
-        await supabase.from('knowledge').update({
-          title: updatedTitle,
-          content: updatedContent
-        }).eq('id', item.db_id);
-      } else {
-        await supabase.from('knowledge').update({
-          title: updatedTitle,
-          content: updatedContent
-        }).eq('title', item.title);
-      }
-    } catch (e) {
-      console.warn('Supabase edit item sync error:', e);
-    }
+    } catch (e) {}
   }
 }
 

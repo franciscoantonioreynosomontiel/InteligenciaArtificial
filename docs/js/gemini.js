@@ -81,7 +81,6 @@ function getStoredAlarmsPrompt() {
   }
 }
 
-
 async function syncAlarmToSupabase(item) {
   try {
     const { data, error } = await supabase.from('alarms_reminders').insert([{
@@ -325,7 +324,6 @@ export function executeCallContact(name) {
     return `Abriendo la aplicación de teléfono para llamar a ${found.name} al número ${found.phone}.`;
   }
 
-  // Check if Web Contact Picker API is available
   if ('contacts' in navigator && 'ContactsManager' in window) {
     navigator.contacts.select(['name', 'tel'], { multiple: false }).then((results) => {
       if (results && results.length > 0 && results[0].tel && results[0].tel.length > 0) {
@@ -415,7 +413,38 @@ export function executeAlarmTool(toolName, args) {
       items.push(newReminder);
       localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
       syncAlarmToSupabase(newReminder);
-      return `Recordatorio "${newReminder.name}" guardado exitosamente.`;
+      return `Recordatorio "${newReminder.name}" guardado exitosamente para las ${newReminder.time}.`;
+    }
+
+    case 'editar_alarma':
+    case 'editar_recordatorio': {
+      const searchName = (args.nombre_buscar || '').toLowerCase().trim();
+      const target = items.find((i) => i.name.toLowerCase().includes(searchName) || searchName.includes(i.name.toLowerCase()));
+      if (!target) {
+        return `No se encontró ningún ${toolName === 'editar_alarma' ? 'alarma' : 'recordatorio'} que coincida con "${args.nombre_buscar}".`;
+      }
+      if (args.nuevo_nombre) {
+        target.name = args.nuevo_nombre.trim();
+        target.title = args.nuevo_nombre.trim();
+      }
+      if (args.nueva_hora) target.time = args.nueva_hora.trim();
+      if (args.nueva_fecha) target.date = args.nueva_fecha.trim();
+      if (args.nuevo_mensaje) target.message = args.nuevo_mensaje.trim();
+      if (args.nuevos_dias && Array.isArray(args.nuevos_dias)) target.days = args.nuevos_dias;
+      if (args.activo !== undefined) target.active = Boolean(args.activo);
+
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(items));
+      if (target.db_id) {
+        supabase.from('alarms_reminders').update({
+          name: target.name,
+          time: target.time,
+          specific_date: target.date,
+          days: target.days,
+          message: target.message,
+          active: target.active
+        }).eq('id', target.db_id).then(() => {});
+      }
+      return `${target.type === 'alarma' ? 'Alarma' : 'Recordatorio'} "${target.name}" actualizado exitosamente para las ${target.time}.`;
     }
 
     case 'crear_conocimiento_faq': {
@@ -443,7 +472,6 @@ export function executeAlarmTool(toolName, args) {
       const parsedItems = parseNoteItems(args.items || (args.contenido ? parseItemsFromContent(args.contenido) : []));
 
       if (existingIdx !== -1) {
-        // Edit existing note instead of creating a duplicate
         const target = nItems[existingIdx];
         if (args.contenido) target.content = args.contenido;
         if (args.color) target.color = args.color;
@@ -534,7 +562,7 @@ export function executeAlarmTool(toolName, args) {
 
       let target = nItems.find((n) => n.title.toLowerCase().includes(noteTitle) || noteTitle.includes(n.title.toLowerCase()));
       if (!target && nItems.length > 0) {
-        target = nItems[nItems.length - 1]; // Use latest note if unspecified
+        target = nItems[nItems.length - 1];
       }
 
       if (!target) {
@@ -669,6 +697,11 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const contextAlarms = getStoredAlarmsPrompt();
   const contextNotes = getStoredNotesPrompt();
 
+  const now = new Date();
+  const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const currentDateStr = now.toISOString().split('T')[0];
+  const timeContext = `Fecha y hora actual local del usuario: ${currentDateStr} ${currentHourMin}`;
+
   const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}`;
 
   if (userPrompt) {
@@ -685,6 +718,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
       prompt: fullPrompt,
       history: chatHistory.slice(0, -1),
       knowledge_context: contextKnowledge,
+      time_context: timeContext,
       image: attachmentData ? attachmentData.base64 : null
     };
 
@@ -757,8 +791,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     }
   }
 
-
-  // Operaciones matemáticas directas (e.g. "1 mas 1", "2 + 2", "cuanto es 15 por 3")
+  // Operaciones matemáticas directas
   const isMathExpr = lower.match(/^(\d+(\.\d+)?)\s*([\+\-\*\/]|mas|más|menos|por|entre)\s*(\d+(\.\d+)?)$/i);
   if (isMathExpr) {
     const num1 = parseFloat(isMathExpr[1]);
@@ -852,7 +885,6 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
     let nItems = nRaw ? JSON.parse(nRaw) : [];
 
-    // Check if user is asking to add items to an existing note
     if (nItems.length > 0 && (lower.includes('agrega') || lower.includes('dentro') || lower.includes('pon lo siguiente') || lower.includes('actualiz') || lower.includes('modifica'))) {
       const itemsToAdd = prompt.replace(/ok dentro|dentro|pon lo siguiente|si puedes|con checkbox|para ir marcando lo que compre|agrega|pon|añade|en la nota/gi, '').trim();
       const lastNote = nItems[nItems.length - 1];
@@ -892,31 +924,53 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
   // Programar Recordatorio
   if (lower.includes('recuerdame') || lower.includes('recuérdame') || lower.includes('recordatorio') || lower.includes('recordar')) {
-    const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
+    let formattedTime = null;
+    let reminderDate = dateStr;
 
-    if (!timeMatch) {
+    // Relative minutes e.g. "en 3 minutos", "en 10 min"
+    const relMinMatch = lower.match(/en\s+(\d+)\s*minuto/);
+    const relHourMatch = lower.match(/en\s+(\d+)\s*hora/);
+
+    if (relMinMatch) {
+      const mins = parseInt(relMinMatch[1]);
+      const targetTime = new Date(now.getTime() + mins * 60 * 1000);
+      const hour = String(targetTime.getHours()).padStart(2, '0');
+      const min = String(targetTime.getMinutes()).padStart(2, '0');
+      formattedTime = `${hour}:${min}`;
+      reminderDate = targetTime.toISOString().split('T')[0];
+    } else if (relHourMatch) {
+      const hours = parseInt(relHourMatch[1]);
+      const targetTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
+      const hour = String(targetTime.getHours()).padStart(2, '0');
+      const min = String(targetTime.getMinutes()).padStart(2, '0');
+      formattedTime = `${hour}:${min}`;
+      reminderDate = targetTime.toISOString().split('T')[0];
+    } else {
+      const timeMatch = lower.match(/(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/);
+      if (timeMatch) {
+        let h = parseInt(timeMatch[1]);
+        const m = timeMatch[2] || '00';
+        const period = timeMatch[3];
+        if (period === 'pm' && h < 12) h += 12;
+        if (period === 'am' && h === 12) h = 0;
+        const hour = String(h).padStart(2, '0');
+        const min = String(m).padStart(2, '0');
+        formattedTime = `${hour}:${min}`;
+        const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        if (!lower.includes('mañana') && !lower.includes('pasado mañana') && formattedTime > currentHourMin) {
+          reminderDate = now.toISOString().split('T')[0];
+        }
+      }
+    }
+
+    if (!formattedTime) {
       return 'Indícame la hora y fecha en la que necesitas que te envíe el recordatorio.';
     }
 
-    let h = parseInt(timeMatch[1]);
-    const m = timeMatch[2] || '00';
-    const period = timeMatch[3];
-    if (period === 'pm' && h < 12) h += 12;
-    if (period === 'am' && h === 12) h = 0;
-    const hour = String(h).padStart(2, '0');
-    const min = String(m).padStart(2, '0');
-    const formattedTime = `${hour}:${min}`;
-
-    let topic = prompt.replace(/recuerdame|recuérdame|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?/gi, '').trim();
+    let topic = prompt.replace(/recuerdame|recuérdame|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?|en \d+ minutos?|en \d+ horas?/gi, '').trim();
     if (!topic || topic.length < 2) topic = 'Recordatorio pendiente';
 
     const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
-
-    let reminderDate = dateStr;
-    const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    if (!lower.includes('mañana') && !lower.includes('pasado mañana') && formattedTime > currentHourMin) {
-      reminderDate = now.toISOString().split('T')[0];
-    }
 
     const reminderData = {
       nombre: topic,
@@ -927,7 +981,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     };
 
     const result = executeAlarmTool('crear_recordatorio', reminderData);
-    return `${result} Registrado en aprender.html.`;
+    return `${result} Guardado para las ${formattedTime}. Puedes verlo en aprender.html o recordatorios.html.`;
   }
 
   // Pastel de 3 leches
