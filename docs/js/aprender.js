@@ -203,12 +203,13 @@ function setupTabs() {
 
 function setupVoiceUI() {
   const enableCB = document.getElementById('voice-enable-elevenlabs');
-  const voiceSelect = document.getElementById('voice-select');
+  const voiceSelectEs = document.getElementById('voice-select');
+  const voiceSelectEn = document.getElementById('voice-select-en');
   const btnFetchVoices = document.getElementById('btn-fetch-voices');
   const btnTestVoice = document.getElementById('btn-test-voice');
   const btnSaveVoice = document.getElementById('btn-save-voice');
 
-  let settings = { enabled: true, voice_id: '', voice_name: '' };
+  let settings = { enabled: true, voice_id: '', voice_id_es: '', voice_id_en: '', voice_name: '' };
   try {
     const raw = localStorage.getItem('ia_agent_voice_settings');
     if (raw) {
@@ -219,8 +220,11 @@ function setupVoiceUI() {
 
   if (enableCB) enableCB.checked = settings.enabled !== false;
 
+  const currentVoiceEs = settings.voice_id_es || settings.voice_id || '';
+  const currentVoiceEn = settings.voice_id_en || '';
+
   if (btnFetchVoices) {
-    btnFetchVoices.addEventListener('click', () => fetchElevenLabsVoices(settings.voice_id));
+    btnFetchVoices.addEventListener('click', () => fetchElevenLabsVoices(currentVoiceEs, currentVoiceEn));
   }
 
   if (btnTestVoice) {
@@ -231,11 +235,16 @@ function setupVoiceUI() {
     btnSaveVoice.addEventListener('click', saveVoiceSettings);
   }
 
-  if (voiceSelect) {
-    voiceSelect.addEventListener('change', () => {
-      if (voiceSelect.value && enableCB) {
-        enableCB.checked = true;
-      }
+  if (voiceSelectEs) {
+    voiceSelectEs.addEventListener('change', () => {
+      if (voiceSelectEs.value && enableCB) enableCB.checked = true;
+      saveVoiceSettings();
+    });
+  }
+
+  if (voiceSelectEn) {
+    voiceSelectEn.addEventListener('change', () => {
+      if (voiceSelectEn.value && enableCB) enableCB.checked = true;
       saveVoiceSettings();
     });
   }
@@ -243,22 +252,24 @@ function setupVoiceUI() {
   const voiceTabBtn = document.querySelector('.tab-btn[data-tab="tab-voice"]');
   if (voiceTabBtn) {
     voiceTabBtn.addEventListener('click', () => {
-      if (voiceSelect && voiceSelect.options.length <= 1) {
-        fetchElevenLabsVoices(settings.voice_id);
+      if (voiceSelectEs && voiceSelectEs.options.length <= 1) {
+        fetchElevenLabsVoices(currentVoiceEs, currentVoiceEn);
       }
     });
   }
 
-  if (voiceSelect) {
-    fetchElevenLabsVoices(settings.voice_id);
+  if (voiceSelectEs) {
+    fetchElevenLabsVoices(currentVoiceEs, currentVoiceEn);
   }
 }
 
-async function fetchElevenLabsVoices(selectedVoiceId = '') {
-  const voiceSelect = document.getElementById('voice-select');
-  if (!voiceSelect) return;
+async function fetchElevenLabsVoices(selectedVoiceEs = '', selectedVoiceEn = '') {
+  const voiceSelectEs = document.getElementById('voice-select');
+  const voiceSelectEn = document.getElementById('voice-select-en');
+  if (!voiceSelectEs) return;
 
-  voiceSelect.innerHTML = '<option value="">Cargando voces desde ElevenLabs...</option>';
+  voiceSelectEs.innerHTML = '<option value="">Cargando voces desde ElevenLabs...</option>';
+  if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">Cargando voces desde ElevenLabs...</option>';
 
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
@@ -274,21 +285,22 @@ async function fetchElevenLabsVoices(selectedVoiceId = '') {
       const data = await res.json();
       if (data.error) {
         showToast(data.error);
-        voiceSelect.innerHTML = '<option value="">Error al cargar voces. Verifica la secret Voz.</option>';
+        voiceSelectEs.innerHTML = '<option value="">Error al cargar voces. Verifica la secret Voz.</option>';
+        if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">Error al cargar voces. Verifica la secret Voz.</option>';
         return;
       }
 
       const voices = data.voices || [];
       if (voices.length === 0) {
-        voiceSelect.innerHTML = '<option value="">No se encontraron voces disponibles</option>';
+        voiceSelectEs.innerHTML = '<option value="">No se encontraron voces disponibles</option>';
+        if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">No se encontraron voces disponibles</option>';
         return;
       }
 
-      voiceSelect.innerHTML = '';
-      voices.forEach((v) => {
-        const opt = document.createElement('option');
-        opt.value = v.voice_id;
+      voiceSelectEs.innerHTML = '<option value="">Selecciona una voz en español</option>';
+      if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">Selecciona una voz en inglés</option>';
 
+      voices.forEach((v) => {
         let categoryLabel = v.category || 'personalizada';
         if (v.category === 'premade') categoryLabel = 'Nativa Premade';
         else if (v.category === 'generated' || v.category === 'cloned') categoryLabel = 'Clonada / Propia';
@@ -296,12 +308,21 @@ async function fetchElevenLabsVoices(selectedVoiceId = '') {
         else if (v.category === 'library') categoryLabel = 'Biblioteca';
 
         const langInfo = (v.labels && (v.labels.language || v.labels.accent)) ? ` - ${v.labels.language || ''} ${v.labels.accent || ''}`.trim() : '';
-        opt.textContent = `${v.name} (${categoryLabel}${langInfo})`;
+        const optText = `${v.name} (${categoryLabel}${langInfo})`;
 
-        if (v.voice_id === selectedVoiceId) {
-          opt.selected = true;
+        const optEs = document.createElement('option');
+        optEs.value = v.voice_id;
+        optEs.textContent = optText;
+        if (v.voice_id === selectedVoiceEs) optEs.selected = true;
+        voiceSelectEs.appendChild(optEs);
+
+        if (voiceSelectEn) {
+          const optEn = document.createElement('option');
+          optEn.value = v.voice_id;
+          optEn.textContent = optText;
+          if (v.voice_id === selectedVoiceEn) optEn.selected = true;
+          voiceSelectEn.appendChild(optEn);
         }
-        voiceSelect.appendChild(opt);
       });
 
       if (data.warning) {
@@ -310,20 +331,24 @@ async function fetchElevenLabsVoices(selectedVoiceId = '') {
         showToast('Voces de ElevenLabs cargadas');
       }
     } else {
-      voiceSelect.innerHTML = '<option value="">Error de conexion con la Edge Function</option>';
+      voiceSelectEs.innerHTML = '<option value="">Error de conexión con la Edge Function</option>';
+      if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">Error de conexión con la Edge Function</option>';
       showToast('Error cargando voces');
     }
   } catch (e) {
     console.error('Error fetching voices:', e);
-    voiceSelect.innerHTML = '<option value="">Error al conectar con la API de Voz</option>';
-    showToast('Error de conexion');
+    voiceSelectEs.innerHTML = '<option value="">Error al conectar con la API de Voz</option>';
+    if (voiceSelectEn) voiceSelectEn.innerHTML = '<option value="">Error al conectar con la API de Voz</option>';
+    showToast('Error de conexión');
   }
 }
 
 async function testElevenLabsVoice() {
-  const voiceSelect = document.getElementById('voice-select');
+  const voiceSelectEs = document.getElementById('voice-select');
+  const voiceSelectEn = document.getElementById('voice-select-en');
   const testInput = document.getElementById('voice-test-text');
-  const voiceId = voiceSelect ? voiceSelect.value : '';
+
+  const voiceId = (voiceSelectEs && voiceSelectEs.value) || (voiceSelectEn && voiceSelectEn.value) || '';
   const text = testInput ? testInput.value.trim() : 'Hola, esta es una prueba de mi voz en ElevenLabs.';
 
   if (!voiceId) {
@@ -369,28 +394,39 @@ async function testElevenLabsVoice() {
     }
   } catch (e) {
     console.error('Error testing voice:', e);
-    alert('Ocurrio un error al intentar probar la voz.');
+    alert('Ocurrió un error al intentar probar la voz.');
   }
 }
 
 function saveVoiceSettings() {
   const enableCB = document.getElementById('voice-enable-elevenlabs');
-  const voiceSelect = document.getElementById('voice-select');
+  const voiceSelectEs = document.getElementById('voice-select');
+  const voiceSelectEn = document.getElementById('voice-select-en');
 
-  const voice_id = voiceSelect ? voiceSelect.value : '';
+  const voice_id_es = voiceSelectEs ? voiceSelectEs.value : '';
+  const voice_id_en = voiceSelectEn ? voiceSelectEn.value : '';
+  const voice_id = voice_id_es || voice_id_en;
   const enabled = enableCB ? enableCB.checked : Boolean(voice_id);
-  const selectedOpt = voiceSelect && voiceSelect.selectedIndex >= 0 ? voiceSelect.options[voiceSelect.selectedIndex] : null;
-  const voice_name = selectedOpt ? selectedOpt.textContent.replace(/ \(.*\)$/, '') : '';
+
+  const selectedOptEs = voiceSelectEs && voiceSelectEs.selectedIndex >= 0 ? voiceSelectEs.options[voiceSelectEs.selectedIndex] : null;
+  const voice_name_es = selectedOptEs ? selectedOptEs.textContent.replace(/ \(.*\)$/, '') : '';
+
+  const selectedOptEn = voiceSelectEn && voiceSelectEn.selectedIndex >= 0 ? voiceSelectEn.options[voiceSelectEn.selectedIndex] : null;
+  const voice_name_en = selectedOptEn ? selectedOptEn.textContent.replace(/ \(.*\)$/, '') : '';
 
   const settings = {
     enabled,
     voice_id,
-    voice_name,
+    voice_id_es,
+    voice_id_en,
+    voice_name: voice_name_es || voice_name_en,
+    voice_name_es,
+    voice_name_en,
     updatedAt: new Date().toISOString()
   };
 
   localStorage.setItem('ia_agent_voice_settings', JSON.stringify(settings));
-  showToast('Configuracion de voz guardada exitosamente');
+  showToast('Configuración de voz guardada exitosamente');
 }
 
 function setupFilters() {

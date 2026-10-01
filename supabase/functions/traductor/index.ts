@@ -14,6 +14,8 @@ interface TranslationRequest {
   text?: string;
   message?: string;
   voice_id?: string;
+  voice_id_es?: string;
+  voice_id_en?: string;
   audio_base64?: string;
   source_lang?: string;
 }
@@ -145,8 +147,12 @@ TUS INSTRUCCIONES ESTRICTAS:
 
     if (elevenLabsApiKey && parsedResult.translated_text) {
       try {
-        const defaultVoice = parsedResult.target_lang === 'en' ? '21m00Tcm4TlvDq8ikWAM' : 'EXAVITQu4vr4xnSDxMaL';
-        const voiceId = body.voice_id || defaultVoice;
+        let voiceId = body.voice_id;
+        if (parsedResult.target_lang === 'en') {
+          voiceId = body.voice_id_en || body.voice_id || '21m00Tcm4TlvDq8ikWAM';
+        } else {
+          voiceId = body.voice_id_es || body.voice_id || 'EXAVITQu4vr4xnSDxMaL';
+        }
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
         const ttsRes = await fetch(ttsUrl, {
           method: 'POST',

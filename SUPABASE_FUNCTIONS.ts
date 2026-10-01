@@ -1,7 +1,7 @@
 // ====================================================================
 // SUPABASE EDGE FUNCTION PARA GEMINI AI (gemini-chat/index.ts)
 // ====================================================================
-// Esta funcion es la Edge Function avanzada para el asistente virtual Sara.
+// Esta funcion es la Edge Function avanzada para el asistente virtual de la PWA Amigo.
 // Incorpora:
 // 1. Detección dinamica de modelos de Google Gemini via `ListModels` API.
 // 2. Soporte completo para Function Calling (alarmas, recordatorios, FAQs, notas, ubicaciones).
@@ -45,7 +45,6 @@ interface RequestBody {
   image?: string;
   image_url?: string;
   knowledge_context?: string;
-  location_context?: string;
 }
 
 interface FunctionParameterProperty {
@@ -191,14 +190,6 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
         }
       },
       {
-        name: "consultar_ubicaciones",
-        description: "Consulta la ubicación GPS actual y dirección de ambas personas/dispositivos que usan la PWA.",
-        parameters: {
-          type: "OBJECT",
-          properties: {}
-        }
-      },
-      {
         name: "llamar_contacto",
         description: "Busca a una persona en los contactos por su nombre y abre la app de llamadas del teléfono.",
         parameters: {
@@ -325,7 +316,7 @@ serve(async (req: Request) => {
     const systemInstruction = {
       parts: [
         {
-          text: `Eres Sara, un asistente de Inteligencia Artificial extraordinariamente inteligente, capaz, brillante, alegre y atenta.
+          text: `Eres un asistente de Inteligencia Artificial extraordinariamente inteligente, capaz, brillante, alegre y atento. No tienes nombre.
 Tienes conocimientos amplios y profundos sobre programación, matemáticas, física, tecnología, cocina, ciencias, modelado 3D (Blender, GLB/GLTF), desarrollo web y conversación general.
 
 REGLAS ABSOLUTAS E IMPERATIVAS:
@@ -334,10 +325,7 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
 3. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
 4. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), entrega la guía completa paso a paso con todos sus detalles directamente en español sin prefijos ni borradores.
 5. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
-6. UBICACIÓN Y DISPOSITIVOS DE LA PWA:
-   - Solo dos personas usan esta PWA. Cuando pregunten por "ubicación", "dónde están", "dónde está la otra persona" o similar, indícales la ubicación GPS actual y dirección de ambas personas basándote en la información recibida de las ubicaciones.
-   - Si no se cuenta aún con la ubicación de alguna persona, indícalo amablemente sin fallar.
-7. DISTINCION CRITICA ENTRE NOTAS, RECORDATORIOS Y ALARMAS:
+6. DISTINCION CRITICA ENTRE NOTAS, RECORDATORIOS Y ALARMAS:
    - NOTAS: Si el usuario te pide "crea una nota...", "guarda una nota...", "anota...", "haz una lista de...", o menciona "post-it", DEBES invocar OBLIGATORIAMENTE la herramienta 'crear_nota'. NUNCA crees un recordatorio ni una alarma cuando pidan una nota.
    - Si el usuario te pide crear una nota pero NO ha indicado con qué nombre o título desea guardarla, PREGÚNTALE DIRECTAMENTE: "¿Con qué nombre te gustaría guardar tu nota?".
    - RECORDATORIOS: Invoca 'crear_recordatorio' SOLO cuando te pidan explícitamente recordar algo a una hora/fecha determinada ("recuérdame a las 5", "crea un recordatorio para mañana").

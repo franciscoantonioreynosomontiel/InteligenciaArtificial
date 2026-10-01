@@ -74,7 +74,7 @@ serve(async (req: Request) => {
     const systemInstruction = {
       parts: [
         {
-          text: `Eres Sara, una asistente alegre y eficiente especializada en gestionar notas post-it.
+          text: `Eres una asistente alegre y eficiente especializada en gestionar notas post-it.
 REGLAS ESTRICTAS PARA NOTAS:
 1. Si el usuario te pide crear una nota o tomar una foto para una nota pero NO ha indicado con qué nombre o título desea guardarla, PREGÚNTALE DIRECTAMENTE: "¿Con qué nombre te gustaría guardar tu nota?".
 2. Si el usuario ya te dio un nombre para la nota o responde a tu pregunta con un nombre, llama a la herramienta 'crear_nota' especificando el 'titulo' y 'contenido'.

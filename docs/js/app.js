@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAlarmExecutionEngine();
 
   // 6. Initial greeting bubble (shows briefly when opening PWA/page, then auto-hides after 3s max)
-  showThoughtBubble('¡Hola Sara! ¿En qué te puedo ayudar hoy?', 3000);
+  showThoughtBubble('¡Hola! ¿En qué te puedo ayudar hoy?', 3000);
 });
 
 async function reverseGeocode(lat, lon) {
@@ -1036,86 +1036,56 @@ async function speakResponse(text, isVoiceBubble = false) {
     if (raw) voiceSettings = JSON.parse(raw);
   } catch (e) {}
 
-  const isElevenLabsActive = voiceSettings && voiceSettings.voice_id && (voiceSettings.enabled !== false);
+  const voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
 
-  if (isElevenLabsActive) {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          action: 'text_to_speech',
-          text: cleanText,
-          voice_id: voiceSettings.voice_id
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.audio_base64) {
-          currentElevenAudio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
-
-          if (scene3D) scene3D.setSpeakingState(true);
-
-          currentElevenAudio.onended = () => {
-            if (scene3D) scene3D.setSpeakingState(false);
-            if (isVoiceBubble) {
-              setTimeout(() => hideThoughtBubble(), 2000);
-            }
-          };
-
-          currentElevenAudio.onerror = () => {
-            if (scene3D) scene3D.setSpeakingState(false);
-            speakResponseWebSpeech(cleanText, isVoiceBubble);
-          };
-
-          currentElevenAudio.play().catch(() => {
-            speakResponseWebSpeech(cleanText, isVoiceBubble);
-          });
-          return;
-        } else if (data && data.error) {
-          console.warn('ElevenLabs TTS returned error:', data.error);
-        }
-      }
-    } catch (e) {
-      console.warn('ElevenLabs TTS call failed, falling back to Web Speech API:', e);
-    }
+  if (!voiceId) {
+    console.warn('No hay voz de ElevenLabs configurada en ia_agent_voice_settings.');
+    return;
   }
 
-  // Fallback to standard Web Speech API
-  speakResponseWebSpeech(cleanText, isVoiceBubble);
-}
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        action: 'text_to_speech',
+        text: cleanText,
+        voice_id: voiceId
+      })
+    });
 
-function speakResponseWebSpeech(cleanText, isVoiceBubble) {
-  if (!synth) return;
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.audio_base64) {
+        currentElevenAudio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = 'es-ES';
-  utterance.rate = 1.0;
-  utterance.pitch = 1.1;
+        if (scene3D) scene3D.setSpeakingState(true);
 
-  utterance.onstart = () => {
-    if (scene3D) scene3D.setSpeakingState(true);
-  };
+        currentElevenAudio.onended = () => {
+          if (scene3D) scene3D.setSpeakingState(false);
+          if (isVoiceBubble) {
+            setTimeout(() => hideThoughtBubble(), 2000);
+          }
+        };
 
-  utterance.onend = () => {
-    if (scene3D) scene3D.setSpeakingState(false);
-    if (isVoiceBubble) {
-      setTimeout(() => hideThoughtBubble(), 2000);
+        currentElevenAudio.onerror = () => {
+          if (scene3D) scene3D.setSpeakingState(false);
+        };
+
+        currentElevenAudio.play().catch((e) => {
+          console.warn('Error al reproducir audio de ElevenLabs:', e);
+          if (scene3D) scene3D.setSpeakingState(false);
+        });
+      } else if (data && data.error) {
+        console.warn('ElevenLabs TTS devolvió un error:', data.error);
+      }
     }
-  };
-
-  utterance.onerror = () => {
-    if (scene3D) scene3D.setSpeakingState(false);
-    if (isVoiceBubble) {
-      hideThoughtBubble();
-    }
-  };
-
-  synth.speak(utterance);
+  } catch (e) {
+    console.warn('Falló la llamada a la Edge Function de ElevenLabs TTS:', e);
+  }
 }
 
 function showToast(message) {
