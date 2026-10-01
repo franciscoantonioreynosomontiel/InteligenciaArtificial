@@ -13,20 +13,6 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS'
 };
 
-const DEFAULT_ELEVENLABS_VOICES = [
-  { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah / Bella', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'XB0fDUnOXGF2VhhC2L9A', name: 'Charlotte', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', category: 'premade', labels: { language: 'Spanish / English' } },
-  { voice_id: 'piTKgcLEGmPE4e6mOjd8', name: 'Nicole', category: 'premade', labels: { language: 'Spanish / English' } }
-];
-
 interface VoiceRequest {
   action?: 'get_voices' | 'text_to_speech' | string;
   text?: string;
@@ -60,7 +46,7 @@ serve(async (req: Request) => {
     const body: VoiceRequest = await req.json().catch(() => ({}));
     const action = body.action || (body.text ? 'text_to_speech' : 'get_voices');
 
-    // Action 1: Obtener la lista de voces de la cuenta de ElevenLabs
+    // Action 1: Obtener unicamente las voces de la cuenta de ElevenLabs
     if (action === 'get_voices') {
       try {
         const voicesRes = await fetch('https://api.elevenlabs.io/v1/voices', {
@@ -73,29 +59,17 @@ serve(async (req: Request) => {
 
         if (!voicesRes.ok) {
           const errData = await voicesRes.json().catch(() => ({}));
-          const isPermError = JSON.stringify(errData).includes('missing_permissions') || JSON.stringify(errData).includes('voices_read');
-
-          if (isPermError) {
-            return new Response(
-              JSON.stringify({
-                voices: DEFAULT_ELEVENLABS_VOICES,
-                warning: 'La API key no tiene el permiso voices_read en ElevenLabs. Se han cargado las voces predeterminadas. Puedes otorgar el permiso voices_read en ElevenLabs para ver tus voces personalizadas.'
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
           return new Response(
             JSON.stringify({
-              voices: DEFAULT_ELEVENLABS_VOICES,
-              warning: `Error de autenticacion con ElevenLabs: ${errData.detail?.message || 'Verifica tu API key'}. Se muestran voces de tu cuenta.`
+              voices: [],
+              error: `Error al consultar tu cuenta de ElevenLabs: ${errData.detail?.message || 'Verifica tu API Key'}`
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
         const voicesData = await voicesRes.json();
-        // Filtrar voces de la biblioteca (library) porque ElevenLabs no permite sintetizarlas via API en planes gratuitos
+        // Filtrar únicamente voces de la cuenta que no causen error
         const voicesList = (voicesData.voices || [])
           .filter((v: any) => v.category !== 'library')
           .map((v: any) => ({
@@ -107,12 +81,12 @@ serve(async (req: Request) => {
           }));
 
         return new Response(
-          JSON.stringify({ voices: voicesList.length > 0 ? voicesList : DEFAULT_ELEVENLABS_VOICES }),
+          JSON.stringify({ voices: voicesList }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } catch (e: any) {
         return new Response(
-          JSON.stringify({ voices: DEFAULT_ELEVENLABS_VOICES, warning: 'Error conectando con ElevenLabs. Mostrando voces de tu cuenta.' }),
+          JSON.stringify({ voices: [], error: 'Error de conexion con ElevenLabs: ' + e.message }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -121,11 +95,18 @@ serve(async (req: Request) => {
     // Action 2: Generar audio con Text-to-Speech
     if (action === 'text_to_speech') {
       const text = (body.text || '').trim();
-      const voiceId = body.voice_id || 'EXAVITQu4vr4xnSDxMaL'; // Sarah/Bella por defecto
+      const voiceId = body.voice_id;
 
       if (!text) {
         return new Response(
           JSON.stringify({ error: 'No se proporciono texto para sintetizar voz.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!voiceId) {
+        return new Response(
+          JSON.stringify({ error: 'No se selecciono ninguna voz de tu cuenta de ElevenLabs.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -154,12 +135,12 @@ serve(async (req: Request) => {
         try {
           const parsed = JSON.parse(errText);
           if (parsed?.detail?.code === 'paid_plan_required' || parsed?.detail?.type === 'payment_required') {
-            errMsg = 'Las cuentas gratuitas de ElevenLabs no permiten sintetizar voces de la biblioteca (Library voices) via API. Por favor selecciona una voz nativa Premade (como Bella o Sarah) o creada en tu cuenta.';
+            errMsg = 'Las cuentas gratuitas de ElevenLabs no permiten sintetizar voces de la biblioteca via API. Por favor selecciona una voz creada o descargada en tu cuenta.';
           } else if (parsed?.detail?.message) {
             errMsg = parsed.detail.message;
           }
         } catch (e) {
-          // Mantiene el texto si no es JSON
+          // Mantiene el texto
         }
 
         return new Response(
