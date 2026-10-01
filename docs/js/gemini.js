@@ -1,6 +1,5 @@
 // Gemini AI Integration & Client Dispatcher
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { refreshCurrentLocationRealtime } from './app.js';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
@@ -78,31 +77,6 @@ function getStoredAlarmsPrompt() {
   }
 }
 
-async function getStoredLocationsPrompt() {
-  try {
-    const { data: locations, error } = await supabase
-      .from('locations')
-      .select('*')
-      .order('updated_at', { ascending: false });
-
-    if (error || !locations || locations.length === 0) {
-      return '\n\nUbicaciones registradas: Aún no hay datos de ubicación disponibles de ningún dispositivo.\n';
-    }
-
-    const currentDevId = localStorage.getItem('ia_agent_device_id') || '';
-
-    let locStr = '\n\nUbicaciones GPS actuales de los dos dispositivos PWA:\n';
-    locations.forEach((loc, index) => {
-      const isCurrent = loc.device_id === currentDevId;
-      const label = isCurrent ? `Persona 1 (Tú - ${loc.device_id})` : `Persona 2 (${loc.device_id})`;
-      const updateTime = new Date(loc.updated_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      locStr += `${index + 1}. ${label}: ${loc.address || 'Sin dirección'} (Lat: ${loc.latitude}, Lon: ${loc.longitude}) - Actualizado: ${updateTime}\n`;
-    });
-    return locStr;
-  } catch (e) {
-    return '';
-  }
-}
 
 async function syncAlarmToSupabase(item) {
   try {
@@ -262,9 +236,6 @@ export function downloadVCard(name, phone) {
 
 // Tool Execution Dispatcher for Alarms, Reminders, Knowledge, Locations, and Contacts
 export async function executeAlarmToolAsync(toolName, args) {
-  if (toolName === 'consultar_ubicaciones') {
-    return await getStoredLocationsPrompt();
-  }
   if (toolName === 'llamar_contacto') {
     return executeCallContact(args.nombre);
   }
@@ -439,12 +410,12 @@ export function executeAlarmTool(toolName, args) {
 }
 
 export async function formulateAIReminderMessage(referenceText) {
-  const prompt = `Formula un recordatorio o aviso muy breve, amigable y natural para Sara basado en este tema o idea: "${referenceText}". No repitas las instrucciones literalmente, habla de forma humana y cercana.`;
+  const prompt = `Formula un recordatorio o aviso muy breve, amigable y natural basado en este tema o idea: "${referenceText}". No repitas las instrucciones literalmente, habla de forma humana y cercana.`;
   try {
     const res = await processGeminiRequest(prompt);
     if (res && res.length > 5) return res;
   } catch (e) {}
-  return `Hola Sara, es hora de recordar: ${referenceText}.`;
+  return `Es hora de recordar: ${referenceText}.`;
 }
 
 export function cleanAIResponseText(text) {
@@ -494,17 +465,11 @@ export function cleanAIResponseText(text) {
 }
 
 export async function processGeminiRequest(userPrompt, attachmentData = null) {
-  const lowerPrompt = (userPrompt || '').toLowerCase();
-  if (lowerPrompt.includes('ubicacion') || lowerPrompt.includes('ubicación') || lowerPrompt.includes('dónde') || lowerPrompt.includes('donde')) {
-    await refreshCurrentLocationRealtime();
-  }
-
   const contextKnowledge = getStoredKnowledgePrompt();
   const contextAlarms = getStoredAlarmsPrompt();
   const contextNotes = getStoredNotesPrompt();
-  const contextLocations = await getStoredLocationsPrompt();
 
-  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}${contextLocations}`;
+  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}`;
 
   if (userPrompt) {
     chatHistory.push({ role: 'user', content: userPrompt });
@@ -520,7 +485,6 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
       prompt: fullPrompt,
       history: chatHistory.slice(0, -1),
       knowledge_context: contextKnowledge,
-      location_context: contextLocations,
       image: attachmentData ? attachmentData.base64 : null
     };
 
@@ -593,14 +557,6 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     }
   }
 
-  // Consulta de ubicación de ambas personas
-  if (lower.includes('ubicacion') || lower.includes('ubicación') || lower.includes('donde esta') || lower.includes('dónde está') || lower.includes('donde estamos') || lower.includes('dónde estamos') || lower.includes('donde estan') || lower.includes('dónde están')) {
-    const locInfo = await getStoredLocationsPrompt();
-    if (locInfo && locInfo.length > 20) {
-      return locInfo.trim();
-    }
-    return 'En este momento se está actualizando la ubicación GPS. Por favor verifica que los permisos de ubicación estén habilitados en ambos dispositivos.';
-  }
 
   // Operaciones matemáticas directas (e.g. "1 mas 1", "2 + 2", "cuanto es 15 por 3")
   const isMathExpr = lower.match(/^(\d+(\.\d+)?)\s*([\+\-\*\/]|mas|más|menos|por|entre)\s*(\d+(\.\d+)?)$/i);
@@ -723,7 +679,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     const reminderData = {
       nombre: topic,
       hora: formattedTime,
-      mensaje: `Hola Sara, recuerda: ${topic}`,
+      mensaje: `Recuerda: ${topic}`,
       fecha: isRecurring ? null : reminderDate,
       dias: isRecurring ? [0, 1, 2, 3, 4, 5, 6] : null
     };
@@ -748,7 +704,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
   }
 
   if (lower.includes('hola') || lower.includes('buenas')) {
-    return '¡Hola Sara! Qué gusto saludarte. Estoy lista para responder tus preguntas, ayudarte con programación o configurar tus alarmas y recordatorios.';
+    return '¡Hola! Qué gusto saludarte. Estoy lista para responder tus preguntas, ayudarte con programación o configurar tus alarmas y recordatorios.';
   }
 
   if (lower.includes('gracias')) {

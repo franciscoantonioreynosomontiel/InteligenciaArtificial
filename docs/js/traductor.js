@@ -185,8 +185,6 @@ export class RealtimeTranslator {
 
         if (translationData.audio_base64) {
           await this.playAudioBase64(translationData.audio_base64);
-        } else {
-          await this.speakTextWebSpeech(translated, target);
         }
       }
     } catch (err) {
@@ -203,12 +201,16 @@ export class RealtimeTranslator {
   async callTranslationEdgeFunction(text) {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${TRANSLATE_FUNCTION_NAME}`;
 
-    let voiceId = null;
+    let voiceIdEs = null;
+    let voiceIdEn = null;
     try {
       const raw = localStorage.getItem('ia_agent_voice_settings');
       if (raw) {
         const settings = JSON.parse(raw);
-        if (settings && settings.voice_id) voiceId = settings.voice_id;
+        if (settings) {
+          voiceIdEs = settings.voice_id_es || settings.voice_id || null;
+          voiceIdEn = settings.voice_id_en || settings.voice_id || null;
+        }
       }
     } catch (e) {}
 
@@ -219,7 +221,12 @@ export class RealtimeTranslator {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({ text, voice_id: voiceId })
+        body: JSON.stringify({
+          text,
+          voice_id_es: voiceIdEs,
+          voice_id_en: voiceIdEn,
+          voice_id: voiceIdEs || voiceIdEn
+        })
       });
 
       if (res.ok) {
@@ -317,36 +324,6 @@ export class RealtimeTranslator {
     });
   }
 
-  speakTextWebSpeech(text, langCode) {
-    return new Promise((resolve) => {
-      if (!this.synth) return resolve();
-
-      this.synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const targetLang = langCode === 'en' ? 'en-US' : 'es-ES';
-      utterance.lang = targetLang;
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
-      const voices = this.synth.getVoices();
-      if (voices && voices.length > 0) {
-        const matchingVoice = voices.find((v) => v.lang.startsWith(langCode) || v.lang.replace('_', '-').startsWith(targetLang));
-        if (matchingVoice) {
-          utterance.voice = matchingVoice;
-        }
-      }
-
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-
-      try {
-        if (this.synth.paused) this.synth.resume();
-        this.synth.speak(utterance);
-      } catch (e) {
-        resolve();
-      }
-    });
-  }
 
   showToast(msg) {
     const toast = document.createElement('div');
