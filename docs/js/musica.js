@@ -3,25 +3,40 @@ import { Scene3D } from './three-scene.js';
 
 const STORAGE_KEY_MUSIC = 'ia_agent_music_library';
 
-// Default music library starts empty (strictly user's Cloudinary uploaded tracks)
-const DEFAULT_MUSIC_LIBRARY = [];
+// Default starter tracks uploaded to Cloudinary account dp776nphp
+const DEFAULT_MUSIC_LIBRARY = [
+  {
+    id: 'cld-p77nsjwwltyve2oryjv3',
+    title: 'Canción Cloudinary 1',
+    artist: 'Cloudinary',
+    album: 'Mi Música Cloudinary',
+    url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
+    cover: './assets/img/logopwa.png',
+    duration: '06:12'
+  }
+];
 
 function getStoredMusicLibrary() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MUSIC);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify([]));
-      return [];
+      localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify(DEFAULT_MUSIC_LIBRARY));
+      return DEFAULT_MUSIC_LIBRARY;
     }
     const items = JSON.parse(raw);
     if (Array.isArray(items) && items.length > 0) {
-      // Filter out non-Cloudinary tracks and default SoundHelix tracks
-      const cldTracks = items.filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/') && !t.title.includes('SoundHelix'));
-      return cldTracks;
+      // Enforce strictly Cloudinary dp776nphp assets and update legacy titles
+      const cldTracks = items
+        .filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/'))
+        .map(t => {
+          if (t.title.includes('SoundHelix')) t.title = 'Canción Cloudinary 1';
+          return t;
+        });
+      return cldTracks.length > 0 ? cldTracks : DEFAULT_MUSIC_LIBRARY;
     }
-    return [];
+    return DEFAULT_MUSIC_LIBRARY;
   } catch (e) {
-    return [];
+    return DEFAULT_MUSIC_LIBRARY;
   }
 }
 
