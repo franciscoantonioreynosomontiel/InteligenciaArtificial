@@ -1,0 +1,12 @@
+EXPLICACION CORTA:
+
+1. ¿Por que existian dos archivos?
+Supabase despliega sus Edge Functions desde carpetas internas (como supabase/functions/voz/index.ts). El archivo voz.ts en la raiz era un respaldo que se habia creado previamente. Ambos archivos ya se han corregido y sincronizado.
+
+2. ¿Por que salia error al cargar las voces de tu cuenta de ElevenLabs?
+Al consultar directamente a ElevenLabs via API con la clave 'Voz' guardada en tu Supabase, ElevenLabs respondio con el siguiente mensaje de seguridad:
+"The API key you used is missing the permission voices_read to execute this operation."
+Esto significa que tu API Key creada en ElevenLabs no tiene activado el permiso "voices_read". Para que ElevenLabs le entregue la lista de tus voces a la app, solo debes ir a ElevenLabs -> API Keys -> Editar tu clave y activar el permiso "voices_read".
+
+3. ¿Por que el Traductor usaba la voz de navegador y daba error?
+El archivo real de la funcion en Supabase (supabase/functions/traductor/index.ts) buscaba una Secret llamada 'ELEVENLABS_API_KEY' en lugar de 'Voz', y utilizaba un modelo de Gemini deprecado (gemini-1.5-flash). Ya fue actualizado para usar tu Secret 'Voz', el modelo activo 'gemini-1.5-flash-latest' y la voz elegida de ElevenLabs.

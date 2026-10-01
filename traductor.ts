@@ -1,17 +1,6 @@
 // ====================================================================
 // EDGE FUNCTION EXCLUSIVA PARA TRADUCTOR EN TIEMPO REAL (traductor.ts)
 // ====================================================================
-// Esta Edge Function se encarga EXCLUSIVAMENTE de procesar traducciones
-// bidireccionales en tiempo real entre Espanol e Ingles utilizando Google Gemini.
-//
-// CARACTERISTICAS:
-// 1. Reutiliza la clave de API GEMINI_API_KEY existente.
-// 2. Detección automatica de idioma por Gemini (Espanol o Ingles).
-// 3. Traduce de Ingles a Espanol (para reproducir en audifonos) o de
-//    Espanol a Ingles (para reproducir por el altavoz hacia la otra persona).
-// 4. Integra opcionalmente ElevenLabs TTS si se configura 'Voz' o 'ELEVENLABS_API_KEY'
-//    para generar audio en tiempo real de alta calidad.
-// ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -26,7 +15,7 @@ interface TranslationRequest {
   message?: string;
   voice_id?: string;
   audio_base64?: string;
-  source_lang?: string; // Opcional, si viene indicado
+  source_lang?: string;
 }
 
 interface TranslationResponse {
@@ -76,12 +65,11 @@ serve(async (req: Request) => {
       );
     }
 
-    // Prompt de traduccion e identificacion automatica con Gemini
     const systemInstruction = {
       parts: [
         {
-          text: `Eres un traductor simultaneo profesional y de ultrabaja latencia entre Ingles y Espanol.
-TUS INSTRUCCIONES STRICTAS:
+          text: `Eres un traductor simultaneo profesional entre Ingles y Espanol.
+TUS INSTRUCCIONES ESTRICTAS:
 1. Analiza la intervencion del usuario.
 2. Si el texto esta en INGLES (o predominantemente en ingles):
    - Detecta idioma: "en"
@@ -91,13 +79,12 @@ TUS INSTRUCCIONES STRICTAS:
    - Detecta idioma: "es"
    - Idioma destino: "en"
    - Traduce al INGLES de manera natural, fluida y directa.
-4. RESPONDE UNICAMENTE EN FORMATO JSON STRICTO SIN NINGUN OTRO TEXTO NI FORMATO MARKDOWN DE LA SIGUIENTE MANERA:
+4. RESPONDE UNICAMENTE EN FORMATO JSON STRICTO DE LA SIGUIENTE MANERA:
 {
   "detected_lang": "en" | "es",
   "target_lang": "es" | "en",
   "translated_text": "Texto traducido aqui"
-}
-5. Queda strictly prohibido incluir comentarios, explicaciones, notas de pensamiento o marcas de markdown (\`\`\`json).`
+}`
         }
       ]
     };
@@ -109,7 +96,7 @@ TUS INSTRUCCIONES STRICTAS:
       }
     ];
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
 
     const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
@@ -146,7 +133,6 @@ TUS INSTRUCCIONES STRICTAS:
       const cleanJson = rawReply.replace(/```json/g, '').replace(/```/g, '').trim();
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
-      // Fallback si la respuesta no vino en JSON limpio
       const isEnglish = /[a-zA-Z]/.test(inputText) && !/[áéíóúñ¿¡]/i.test(inputText);
       parsedResult = {
         detected_lang: isEnglish ? 'en' : 'es',
@@ -157,10 +143,9 @@ TUS INSTRUCCIONES STRICTAS:
 
     let audioBase64: string | null = null;
 
-    // Si ElevenLabs API Key esta presente, generar voz TTS de baja latencia
     if (elevenLabsApiKey && parsedResult.translated_text) {
       try {
-        const defaultVoice = parsedResult.target_lang === 'en' ? '21m00Tcm4TlvDq8ikWAM' : 'EXAVITQu4vr4xnSDxMaL'; // Rachel (EN) / Sarah (ES)
+        const defaultVoice = parsedResult.target_lang === 'en' ? '21m00Tcm4TlvDq8ikWAM' : 'EXAVITQu4vr4xnSDxMaL';
         const voiceId = body.voice_id || defaultVoice;
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
         const ttsRes = await fetch(ttsUrl, {
@@ -190,7 +175,7 @@ TUS INSTRUCCIONES STRICTAS:
           audioBase64 = btoa(binary);
         }
       } catch (e) {
-        console.warn('ElevenLabs TTS fallback to Web Speech API:', e);
+        console.warn('ElevenLabs TTS error in traductor Edge Function:', e);
       }
     }
 
@@ -209,7 +194,7 @@ TUS INSTRUCCIONES STRICTAS:
 
   } catch (error: any) {
     return new Response(
-      JSON.stringify({ error: 'Error interno en la Edge Function de traduccion: ' + error.message }),
+      JSON.stringify({ error: 'Error interno en Edge Function traductor: ' + error.message }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
