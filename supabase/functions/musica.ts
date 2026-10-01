@@ -197,7 +197,7 @@ serve(async (req: Request) => {
     if (!matchedAction && (lowerPrompt.includes('cancion') || lowerPrompt.includes('album') || lowerPrompt.includes('cantante') || lowerPrompt.includes('ponme') || lowerPrompt.includes('reproduce'))) {
       const requestedTerm = userPrompt.replace(/ponme|reproduce|la cancion|el album|del cantante|cancion|album/gi, '').trim();
       matchedAction = 'not_found';
-      aiMessage = `No tengo la canción o elemento "${requestedTerm || userPrompt}" en tu biblioteca de Cloudinary. Puedes subirla desde el menú.`;
+      aiMessage = `No tengo la canción o elemento "${requestedTerm || userPrompt}" en tu biblioteca de Cloudinary.`;
     }
 
     if (apiKey && !aiMessage) {

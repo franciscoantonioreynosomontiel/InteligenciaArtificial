@@ -1,15 +1,14 @@
 // Music Player Controller & Cloudinary Voice Interaction
 import { Scene3D } from './three-scene.js';
-import { uploadToCloudinary } from './cloudinary.js';
 
 const STORAGE_KEY_MUSIC = 'ia_agent_music_library';
 
-// Default starter tracks uploaded to Cloudinary
+// Default starter tracks uploaded to Cloudinary account dp776nphp
 const DEFAULT_MUSIC_LIBRARY = [
   {
-    id: 'track-cld-1',
+    id: 'cld-p77nsjwwltyve2oryjv3',
     title: 'SoundHelix Song 1',
-    artist: 'SoundHelix',
+    artist: 'Cloudinary',
     album: 'Cloudinary Hits',
     url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
     cover: './assets/img/logopwa.png',
@@ -25,7 +24,12 @@ function getStoredMusicLibrary() {
       return DEFAULT_MUSIC_LIBRARY;
     }
     const items = JSON.parse(raw);
-    return Array.isArray(items) && items.length > 0 ? items : DEFAULT_MUSIC_LIBRARY;
+    if (Array.isArray(items) && items.length > 0) {
+      // Filter out non-Cloudinary tracks to enforce strictly Cloudinary dp776nphp assets
+      const cldTracks = items.filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/'));
+      return cldTracks.length > 0 ? cldTracks : DEFAULT_MUSIC_LIBRARY;
+    }
+    return DEFAULT_MUSIC_LIBRARY;
   } catch (e) {
     return DEFAULT_MUSIC_LIBRARY;
   }
@@ -346,48 +350,6 @@ function setupUIEventListeners() {
     });
   }
 
-  // Cloudinary Music Upload Button
-  const btnUploadMusic = document.getElementById('btn-upload-music');
-  const musicFileInput = document.getElementById('music-file-input');
-
-  if (btnUploadMusic && musicFileInput) {
-    btnUploadMusic.addEventListener('click', () => musicFileInput.click());
-    musicFileInput.addEventListener('change', async () => {
-      if (musicFileInput.files && musicFileInput.files[0]) {
-        const file = musicFileInput.files[0];
-        showToast('Subiendo canción a Cloudinary...');
-
-        try {
-          const cloudUrl = await uploadToCloudinary(file, 'video');
-          if (cloudUrl) {
-            const rawTitle = file.name.replace(/\.[^/.]+$/, '');
-            const newTrack = {
-              id: 'cld_' + Date.now(),
-              title: rawTitle,
-              artist: 'Mi Música',
-              album: 'Cloudinary',
-              url: cloudUrl,
-              cover: './assets/img/logopwa.png',
-              duration: '03:30'
-            };
-
-            MUSIC_LIBRARY.push(newTrack);
-            saveStoredMusicLibrary(MUSIC_LIBRARY);
-            renderLibraryList();
-            showToast(`Canción "${rawTitle}" subida exitosamente.`);
-
-            // Auto play newly uploaded track
-            loadTrack(MUSIC_LIBRARY.length - 1, true);
-          } else {
-            showToast('Error al subir canción a Cloudinary.');
-          }
-        } catch (e) {
-          showToast('Error en la subida a Cloudinary.');
-        }
-      }
-    });
-  }
-
   // Player Buttons
   const btnPlayPause = document.getElementById('btn-play-pause');
   const btnNext = document.getElementById('btn-next');
@@ -458,7 +420,7 @@ function renderLibraryList() {
   });
 
   if (filteredTracks.length === 0) {
-    container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas. Puedes subir música usando el botón de abajo.</div>`;
+    container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
     return;
   }
 
@@ -511,7 +473,7 @@ function createMusicItemElement(track, container) {
       <div class="music-item-title">${track.title}</div>
       <div class="music-item-sub">${track.artist} • ${track.album}</div>
     </div>
-    <span style="font-size:0.75rem; color:#8b5cf6; font-weight:600;">${track.duration || '03:30'}</span>
+    <span style="font-size:0.75rem; color:#8b5cf6; font-weight:600;">${track.duration || '06:12'}</span>
   `;
 
   itemDiv.addEventListener('click', () => {
