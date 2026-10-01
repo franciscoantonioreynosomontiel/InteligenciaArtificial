@@ -275,6 +275,16 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
           },
           required: ["nombre", "telefono"]
         }
+      },
+      {
+        name: "reproducir_musica",
+        description: "Abre el reproductor de música o activa la sección de música cuando el usuario pide escuchar música, poner música o reproducir canciones.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            peticion: { type: "STRING", description: "Petición o nombre de la canción o artista que el usuario quiere escuchar" }
+          }
+        }
       }
     ]
   }

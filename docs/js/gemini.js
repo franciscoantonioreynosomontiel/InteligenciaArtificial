@@ -309,6 +309,14 @@ export async function executeAlarmToolAsync(toolName, args) {
   if (toolName === 'guardar_contacto') {
     return executeSaveContact(args.nombre, args.telefono);
   }
+  if (toolName === 'reproducir_musica') {
+    if (!window.location.pathname.endsWith('musica.html')) {
+      setTimeout(() => {
+        window.location.href = './musica.html';
+      }, 1200);
+    }
+    return '¡Claro! Abriendo el reproductor de música...';
+  }
   return executeAlarmTool(toolName, args);
 }
 
@@ -997,6 +1005,15 @@ async function executeDynamicClientAnswer(prompt, attachment) {
   // Desplegar Python en Render
   if (lower.includes('render') && lower.includes('python')) {
     return 'Para desplegar un proyecto Python en Render: 1) Sube tu código a GitHub. 2) En Render dashboard, haz clic en New Web Service y conecta tu repo. 3) En Build Command coloca "pip install -r requirements.txt". 4) En Start Command coloca "gunicorn app:app" o "python main.py". 5) Selecciona el plan gratuito y haz clic en Create Web Service.';
+  }
+
+  if (lower.includes('ponme musica') || lower.includes('quiero escuchar musica') || lower.includes('pon musica') || lower.includes('escuchar musica') || lower.includes('reproducir musica')) {
+    if (!window.location.pathname.endsWith('musica.html')) {
+      setTimeout(() => {
+        window.location.href = './musica.html';
+      }, 1200);
+      return '¡Claro! Te llevo al reproductor de música.';
+    }
   }
 
   if (lower.includes('hola') || lower.includes('buenas')) {

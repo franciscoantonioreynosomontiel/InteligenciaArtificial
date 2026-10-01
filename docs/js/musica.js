@@ -1,57 +1,43 @@
-// Music Player Controller & Gemini GLTF Direct Voice Interaction
+// Music Player Controller & Cloudinary Voice Interaction
 import { Scene3D } from './three-scene.js';
-import { processGeminiRequest } from './gemini.js';
+import { uploadToCloudinary } from './cloudinary.js';
 
-// Cloudinary Music Catalog Configuration
-const CLOUDINARY_BASE_URL = 'https://res.cloudinary.com/dp776nphp/video/upload/v1/ia_agent/music/';
+const STORAGE_KEY_MUSIC = 'ia_agent_music_library';
 
-const MUSIC_LIBRARY = [
+// Default starter tracks uploaded to Cloudinary
+const DEFAULT_MUSIC_LIBRARY = [
   {
-    id: 'track-1',
-    title: 'Melodía Chill Vibes',
-    artist: 'Amigo Gemini',
-    album: 'Atardeceres Suaves',
-    url: `${CLOUDINARY_BASE_URL}chill_vibes.mp3`,
+    id: 'track-cld-1',
+    title: 'SoundHelix Song 1',
+    artist: 'SoundHelix',
+    album: 'Cloudinary Hits',
+    url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
     cover: './assets/img/logopwa.png',
-    duration: '03:15'
-  },
-  {
-    id: 'track-2',
-    title: 'Ritmo Urbano Latino',
-    artist: 'Amigo Gemini',
-    album: 'Fiesta Nocturna',
-    url: `${CLOUDINARY_BASE_URL}ritmo_urbano.mp3`,
-    cover: './assets/img/logopwa.png',
-    duration: '02:45'
-  },
-  {
-    id: 'track-3',
-    title: 'Acústico Romántico',
-    artist: 'Voz Dulce',
-    album: 'Atardeceres Suaves',
-    url: `${CLOUDINARY_BASE_URL}acustico_romantico.mp3`,
-    cover: './assets/img/logopwa.png',
-    duration: '03:40'
-  },
-  {
-    id: 'track-4',
-    title: 'Piano de Meditación',
-    artist: 'Serenidad',
-    album: 'Mente Clara',
-    url: `${CLOUDINARY_BASE_URL}piano_meditacion.mp3`,
-    cover: './assets/img/logopwa.png',
-    duration: '04:10'
-  },
-  {
-    id: 'track-5',
-    title: 'Pop Electrónico',
-    artist: 'Voz Dulce',
-    album: 'Fiesta Nocturna',
-    url: `${CLOUDINARY_BASE_URL}pop_electronico.mp3`,
-    cover: './assets/img/logopwa.png',
-    duration: '03:00'
+    duration: '06:12'
   }
 ];
+
+function getStoredMusicLibrary() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MUSIC);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify(DEFAULT_MUSIC_LIBRARY));
+      return DEFAULT_MUSIC_LIBRARY;
+    }
+    const items = JSON.parse(raw);
+    return Array.isArray(items) && items.length > 0 ? items : DEFAULT_MUSIC_LIBRARY;
+  } catch (e) {
+    return DEFAULT_MUSIC_LIBRARY;
+  }
+}
+
+function saveStoredMusicLibrary(library) {
+  try {
+    localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify(library));
+  } catch (e) {}
+}
+
+let MUSIC_LIBRARY = getStoredMusicLibrary();
 
 // Audio State
 let audioPlayer = new Audio();
@@ -89,7 +75,6 @@ function setup3DViewer() {
       scene3D = new Scene3D('canvas-container');
     });
 
-    // GLTF Model Touch/Click Handler to trigger speech recognition directly
     modelViewer.addEventListener('click', handleGLTFTouch);
   } else if (document.getElementById('canvas-container')) {
     const fallbackCanvas = document.getElementById('canvas-container');
@@ -131,13 +116,13 @@ function setupSpeechRecognition() {
   recognition.onstart = () => {
     isListeningGLTF = true;
     updateGLTFBadge(true, 'Escuchando...');
-    showThoughtBubble('Te escucho... Háblame para pedirme canciones o hacerme preguntas.');
+    showThoughtBubble('Te escucho... Pídeme alguna canción o controla la música.');
   };
 
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
     stopGLTFListening();
-    handleGeminiVoiceCommand(transcript);
+    handleMusicVoiceCommand(transcript);
   };
 
   recognition.onerror = () => stopGLTFListening();
@@ -156,38 +141,59 @@ function updateGLTFBadge(isListening, text) {
   if (badgeText) badgeText.innerText = text;
 }
 
-async function handleGeminiVoiceCommand(userPrompt) {
+async function handleMusicVoiceCommand(userPrompt) {
   showThoughtBubbleLoading();
 
   try {
-    // Pass user prompt with custom player context instructions
-    const fullContextPrompt = `[Contexto Reproductor de Música]: El usuario está usando el reproductor de música. Si pide poner una canción, pausar, siguiente o cambiar de tema, ayúdale amablemente y responde de forma alegre y directa. Petición del usuario: "${userPrompt}"`;
+    const payload = {
+      prompt: userPrompt,
+      library: MUSIC_LIBRARY,
+      current_index: currentTrackIndex,
+      is_playing: isPlaying,
+      volume: audioPlayer.volume
+    };
 
-    const responseText = await processGeminiRequest(fullContextPrompt);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/musica`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify(payload)
+    });
+
     stopThoughtBubbleLoading();
-    showThoughtBubble(responseText, 6000);
 
-    // Dynamic music control based on voice request
-    const lower = userPrompt.toLowerCase();
-    if (lower.includes('reproducir') || lower.includes('pon') || lower.includes('play')) {
-      const foundTrackIndex = MUSIC_LIBRARY.findIndex(t =>
-        lower.includes(t.title.toLowerCase()) || lower.includes(t.artist.toLowerCase()) || lower.includes(t.album.toLowerCase())
-      );
-      if (foundTrackIndex !== -1) {
-        loadTrack(foundTrackIndex, true);
-      } else if (!isPlaying) {
+    if (res.ok) {
+      const data = await res.json();
+      const action = data.action;
+      const reply = data.reply || 'Procesando tu música.';
+
+      showThoughtBubble(reply, 6000);
+
+      if (action === 'play_track' || action === 'play_album' || action === 'play_artist') {
+        if (typeof data.track_index === 'number' && data.track_index >= 0 && data.track_index < MUSIC_LIBRARY.length) {
+          loadTrack(data.track_index, true);
+        }
+      } else if (action === 'next_track') {
+        playNextTrack();
+      } else if (action === 'prev_track') {
+        playPrevTrack();
+      } else if (action === 'control_playback') {
         togglePlayPause();
+      } else if (action === 'control_volume') {
+        if (typeof data.volume === 'number') {
+          audioPlayer.volume = data.volume;
+          const volumeSlider = document.getElementById('volume-slider');
+          if (volumeSlider) volumeSlider.value = data.volume;
+        }
       }
-    } else if (lower.includes('pausa') || lower.includes('deten') || lower.includes('stop')) {
-      if (isPlaying) togglePlayPause();
-    } else if (lower.includes('siguiente') || lower.includes('cambia')) {
-      playNextTrack();
-    } else if (lower.includes('anterior')) {
-      playPrevTrack();
-    }
 
-    if (speechEnabled && responseText) {
-      speakResponse(responseText);
+      if (speechEnabled && reply) {
+        speakResponse(reply);
+      }
+    } else {
+      showThoughtBubble('No pude comunicarme con el servicio de música.', 4000);
     }
   } catch (err) {
     stopThoughtBubbleLoading();
@@ -228,7 +234,8 @@ function setupAudioPlayerEvents() {
 }
 
 function loadTrack(index, autoPlay = true) {
-  if (index < 0 || index >= MUSIC_LIBRARY.length) return;
+  if (MUSIC_LIBRARY.length === 0) return;
+  if (index < 0 || index >= MUSIC_LIBRARY.length) index = 0;
   currentTrackIndex = index;
   const track = MUSIC_LIBRARY[currentTrackIndex];
 
@@ -240,7 +247,7 @@ function loadTrack(index, autoPlay = true) {
 
   if (titleElem) titleElem.innerText = track.title;
   if (artistElem) artistElem.innerText = `${track.artist} • ${track.album}`;
-  if (coverElem) coverElem.src = track.cover;
+  if (coverElem) coverElem.src = track.cover || './assets/img/logopwa.png';
 
   renderLibraryList();
 
@@ -274,9 +281,12 @@ function setIsPlaying(playing) {
 }
 
 function playNextTrack() {
+  if (MUSIC_LIBRARY.length === 0) return;
   if (isShuffle) {
     let nextIndex = Math.floor(Math.random() * MUSIC_LIBRARY.length);
-    if (nextIndex === currentTrackIndex) nextIndex = (currentTrackIndex + 1) % MUSIC_LIBRARY.length;
+    if (nextIndex === currentTrackIndex && MUSIC_LIBRARY.length > 1) {
+      nextIndex = (currentTrackIndex + 1) % MUSIC_LIBRARY.length;
+    }
     loadTrack(nextIndex, true);
   } else {
     const nextIndex = (currentTrackIndex + 1) % MUSIC_LIBRARY.length;
@@ -285,6 +295,7 @@ function playNextTrack() {
 }
 
 function playPrevTrack() {
+  if (MUSIC_LIBRARY.length === 0) return;
   const prevIndex = (currentTrackIndex - 1 + MUSIC_LIBRARY.length) % MUSIC_LIBRARY.length;
   loadTrack(prevIndex, true);
 }
@@ -332,6 +343,48 @@ function setupUIEventListeners() {
     searchInput.addEventListener('input', (e) => {
       searchFilterQuery = e.target.value.toLowerCase().trim();
       renderLibraryList();
+    });
+  }
+
+  // Cloudinary Music Upload Button
+  const btnUploadMusic = document.getElementById('btn-upload-music');
+  const musicFileInput = document.getElementById('music-file-input');
+
+  if (btnUploadMusic && musicFileInput) {
+    btnUploadMusic.addEventListener('click', () => musicFileInput.click());
+    musicFileInput.addEventListener('change', async () => {
+      if (musicFileInput.files && musicFileInput.files[0]) {
+        const file = musicFileInput.files[0];
+        showToast('Subiendo canción a Cloudinary...');
+
+        try {
+          const cloudUrl = await uploadToCloudinary(file, 'video');
+          if (cloudUrl) {
+            const rawTitle = file.name.replace(/\.[^/.]+$/, '');
+            const newTrack = {
+              id: 'cld_' + Date.now(),
+              title: rawTitle,
+              artist: 'Mi Música',
+              album: 'Cloudinary',
+              url: cloudUrl,
+              cover: './assets/img/logopwa.png',
+              duration: '03:30'
+            };
+
+            MUSIC_LIBRARY.push(newTrack);
+            saveStoredMusicLibrary(MUSIC_LIBRARY);
+            renderLibraryList();
+            showToast(`Canción "${rawTitle}" subida exitosamente.`);
+
+            // Auto play newly uploaded track
+            loadTrack(MUSIC_LIBRARY.length - 1, true);
+          } else {
+            showToast('Error al subir canción a Cloudinary.');
+          }
+        } catch (e) {
+          showToast('Error en la subida a Cloudinary.');
+        }
+      }
     });
   }
 
@@ -404,8 +457,12 @@ function renderLibraryList() {
            track.album.toLowerCase().includes(searchFilterQuery);
   });
 
+  if (filteredTracks.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas. Puedes subir música usando el botón de abajo.</div>`;
+    return;
+  }
+
   if (activeFilterTab === 'albums') {
-    // Group by album
     const albums = {};
     filteredTracks.forEach(t => {
       if (!albums[t.album]) albums[t.album] = [];
@@ -422,7 +479,6 @@ function renderLibraryList() {
       albumTracks.forEach(track => createMusicItemElement(track, container));
     });
   } else if (activeFilterTab === 'artists') {
-    // Group by artist
     const artists = {};
     filteredTracks.forEach(t => {
       if (!artists[t.artist]) artists[t.artist] = [];
@@ -439,24 +495,23 @@ function renderLibraryList() {
       artistTracks.forEach(track => createMusicItemElement(track, container));
     });
   } else {
-    // Plain list of songs
     filteredTracks.forEach(track => createMusicItemElement(track, container));
   }
 }
 
 function createMusicItemElement(track, container) {
-  const itemIndex = MUSIC_LIBRARY.findIndex(t => t.id === track.id);
+  const itemIndex = MUSIC_LIBRARY.findIndex(t => t.id === track.id || t.url === track.url);
   const isCurrent = itemIndex === currentTrackIndex;
 
   const itemDiv = document.createElement('div');
   itemDiv.className = `music-item ${isCurrent ? 'active' : ''}`;
   itemDiv.innerHTML = `
-    <img src="${track.cover}" class="music-item-img" alt="Cover">
+    <img src="${track.cover || './assets/img/logopwa.png'}" class="music-item-img" alt="Cover">
     <div class="music-item-info">
       <div class="music-item-title">${track.title}</div>
       <div class="music-item-sub">${track.artist} • ${track.album}</div>
     </div>
-    <span style="font-size:0.75rem; color:#8b5cf6; font-weight:600;">${track.duration}</span>
+    <span style="font-size:0.75rem; color:#8b5cf6; font-weight:600;">${track.duration || '03:30'}</span>
   `;
 
   itemDiv.addEventListener('click', () => {
@@ -474,7 +529,7 @@ let thoughtLoadingTimer = null;
 
 function showThoughtBubbleLoading() {
   stopThoughtLoading();
-  const container = document.querySelector('.thought-bubble-container');
+  const container = document.querySelector('.music-thought-container');
   const thoughtText = document.getElementById('thought-text');
   let step = 0;
   const dots = ['.', '. .', '. . .'];
@@ -495,7 +550,7 @@ function stopThoughtLoading() {
 
 function showThoughtBubble(text, autoHideMs = 5000) {
   stopThoughtLoading();
-  const container = document.querySelector('.thought-bubble-container');
+  const container = document.querySelector('.music-thought-container');
   const thoughtText = document.getElementById('thought-text');
   if (thoughtText) thoughtText.innerText = text;
   if (container) container.style.display = 'block';
