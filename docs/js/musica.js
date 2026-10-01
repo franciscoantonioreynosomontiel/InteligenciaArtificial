@@ -3,35 +3,25 @@ import { Scene3D } from './three-scene.js';
 
 const STORAGE_KEY_MUSIC = 'ia_agent_music_library';
 
-// Default starter tracks uploaded to Cloudinary account dp776nphp
-const DEFAULT_MUSIC_LIBRARY = [
-  {
-    id: 'cld-p77nsjwwltyve2oryjv3',
-    title: 'SoundHelix Song 1',
-    artist: 'Cloudinary',
-    album: 'Cloudinary Hits',
-    url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
-    cover: './assets/img/logopwa.png',
-    duration: '06:12'
-  }
-];
+// Default music library starts empty (strictly user's Cloudinary uploaded tracks)
+const DEFAULT_MUSIC_LIBRARY = [];
 
 function getStoredMusicLibrary() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MUSIC);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify(DEFAULT_MUSIC_LIBRARY));
-      return DEFAULT_MUSIC_LIBRARY;
+      localStorage.setItem(STORAGE_KEY_MUSIC, JSON.stringify([]));
+      return [];
     }
     const items = JSON.parse(raw);
     if (Array.isArray(items) && items.length > 0) {
-      // Filter out non-Cloudinary tracks to enforce strictly Cloudinary dp776nphp assets
-      const cldTracks = items.filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/'));
-      return cldTracks.length > 0 ? cldTracks : DEFAULT_MUSIC_LIBRARY;
+      // Filter out non-Cloudinary tracks and default SoundHelix tracks
+      const cldTracks = items.filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/') && !t.title.includes('SoundHelix'));
+      return cldTracks;
     }
-    return DEFAULT_MUSIC_LIBRARY;
+    return [];
   } catch (e) {
-    return DEFAULT_MUSIC_LIBRARY;
+    return [];
   }
 }
 
@@ -404,6 +394,67 @@ function setupUIEventListeners() {
       showToast(speechEnabled ? 'Voz activada' : 'Voz desactivada');
     });
   }
+
+  // Cloudinary Upload Button & Input Handler
+  const btnUploadMusic = document.getElementById('btn-upload-music');
+  const musicUploadInput = document.getElementById('music-upload-input');
+  const uploadStatus = document.getElementById('upload-status');
+
+  if (btnUploadMusic && musicUploadInput) {
+    btnUploadMusic.addEventListener('click', () => musicUploadInput.click());
+    musicUploadInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (uploadStatus) {
+        uploadStatus.innerText = 'Subiendo a Cloudinary...';
+        uploadStatus.style.display = 'block';
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'vit0x7dr');
+
+      try {
+        const response = await fetch('https://api.cloudinary.com/v1_1/dp776nphp/video/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+          if (uploadStatus) uploadStatus.innerText = '¡Subida exitosa!';
+          const fileName = file.name.replace(/\.[^/.]+$/, '');
+          const newTrack = {
+            id: data.public_id || ('cld-' + Date.now()),
+            title: fileName,
+            artist: 'Cloudinary',
+            album: 'Mi Música',
+            url: data.secure_url,
+            cover: './assets/img/logopwa.png',
+            duration: formatTime(data.duration || 0)
+          };
+
+          MUSIC_LIBRARY.push(newTrack);
+          saveStoredMusicLibrary(MUSIC_LIBRARY);
+          renderLibraryList();
+          loadTrack(MUSIC_LIBRARY.length - 1, true);
+          showToast(`Canción "${fileName}" subida a Cloudinary.`);
+
+          setTimeout(() => {
+            if (uploadStatus) uploadStatus.style.display = 'none';
+          }, 3000);
+        } else {
+          if (uploadStatus) uploadStatus.innerText = 'Error al subir: ' + (data.error ? data.error.message : 'Error desconocido');
+        }
+      } catch (err) {
+        if (uploadStatus) uploadStatus.innerText = 'Error de red: ' + err.message;
+      } finally {
+        musicUploadInput.value = '';
+      }
+    });
+  }
 }
 
 function renderLibraryList() {
@@ -493,6 +544,7 @@ function showThoughtBubbleLoading() {
   stopThoughtLoading();
   const container = document.querySelector('.music-thought-container');
   const thoughtText = document.getElementById('thought-text');
+  if (!container && !thoughtText) return;
   let step = 0;
   const dots = ['.', '. .', '. . .'];
   if (thoughtText) thoughtText.innerText = dots[0];
@@ -514,6 +566,7 @@ function showThoughtBubble(text, autoHideMs = 5000) {
   stopThoughtLoading();
   const container = document.querySelector('.music-thought-container');
   const thoughtText = document.getElementById('thought-text');
+  if (!container && !thoughtText) return;
   if (thoughtText) thoughtText.innerText = text;
   if (container) container.style.display = 'block';
 
