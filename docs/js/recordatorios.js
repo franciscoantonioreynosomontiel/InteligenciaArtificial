@@ -1,4 +1,5 @@
 // Dedicated Reminders View Logic
+import './app.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
@@ -41,10 +42,11 @@ async function fetchSupabaseReminders() {
   try {
     const { data, error } = await supabase.from('alarms_reminders').select('*').eq('type', 'recordatorio');
     if (!error && Array.isArray(data)) {
-      const allRules = getLocalReminders();
-      const nonReminders = allRules.filter((r) => r.type !== 'recordatorio');
+      const currentRules = getLocalReminders();
+      const nonReminders = currentRules.filter((r) => r.type !== 'recordatorio');
+      const localReminders = currentRules.filter((r) => r.type === 'recordatorio');
 
-      const reminderRules = data.map((r) => ({
+      const dbReminders = data.map((r) => ({
         id: 'alg_' + r.id,
         db_id: r.id,
         type: 'recordatorio',
@@ -61,7 +63,19 @@ async function fetchSupabaseReminders() {
         createdAt: r.created_at
       }));
 
-      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify([...nonReminders, ...reminderRules]));
+      const mergedMap = new Map();
+      localReminders.forEach((lR) => mergedMap.set(lR.id, lR));
+      dbReminders.forEach((dbR) => {
+        const localMatch = localReminders.find((lR) => lR.db_id === dbR.db_id || (lR.name && lR.name.toLowerCase() === dbR.name.toLowerCase()));
+        if (localMatch) {
+          mergedMap.set(localMatch.id, { ...dbR, id: localMatch.id, active: localMatch.active });
+        } else {
+          mergedMap.set(dbR.id, dbR);
+        }
+      });
+
+      const updatedAll = [...nonReminders, ...Array.from(mergedMap.values())];
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(updatedAll));
       renderRemindersList();
     }
   } catch (e) {
@@ -152,7 +166,6 @@ async function toggleReminderActive(id, isActive) {
 }
 
 async function deleteReminder(id) {
-  if (!confirm('¿Deseas eliminar este recordatorio?')) return;
   let rules = getLocalReminders();
   const target = rules.find((r) => r.id === id);
   rules = rules.filter((r) => r.id !== id);
@@ -169,33 +182,11 @@ async function deleteReminder(id) {
   }
 }
 
-async function editReminder(reminder) {
-  const newName = prompt('Editar asunto del recordatorio:', reminder.name);
-  if (newName === null) return;
-
-  const newTime = prompt('Editar hora (HH:MM):', reminder.time);
-  if (newTime === null) return;
-
-  const newMsg = prompt('Editar mensaje:', reminder.message);
-  if (newMsg === null) return;
-
-  const rules = getLocalReminders();
-  const idx = rules.findIndex((r) => r.id === reminder.id);
-  if (idx !== -1) {
-    rules[idx].name = newName.trim() || reminder.name;
-    rules[idx].time = newTime.trim() || reminder.time;
-    rules[idx].message = newMsg.trim() || reminder.message;
-    saveLocalReminders(rules);
-
-    try {
-      if (reminder.db_id) {
-        await supabase.from('alarms_reminders').update({
-          name: rules[idx].name,
-          time: rules[idx].time,
-          message: rules[idx].message
-        }).eq('id', reminder.db_id);
-      }
-    } catch (e) {}
+function editReminder(reminder) {
+  if (window.openRuleEditorModal) {
+    window.openRuleEditorModal(reminder, () => {
+      renderRemindersList();
+    });
   }
 }
 

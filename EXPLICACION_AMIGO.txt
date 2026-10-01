@@ -1,0 +1,47 @@
+====================================================================
+EXPLICACIÓN DETALLADA Y RESPUESTA A TUS DUDAS SOBRE VOZ Y ALARMAS
+====================================================================
+
+Hola. A continuación te explico detalladamente por qué Gemini no te habla por sí solo sin que le hables previamente, y por qué las alarmas o recordatorios con tiempos relativos ("en 3 minutos") no te sonaban o no aparecían correctamente:
+
+--------------------------------------------------------------------
+1. ¿POR QUÉ GEMINI NO TE HABLA SPONTÁNEAMENTE SIN QUE TÚ LE HABLESTRO TENGAS INTERACCIÓN PREVIA?
+--------------------------------------------------------------------
+A. POLÍTICAS DE AUTOPLAY DE LOS NAVEGADORES (Tanto en PC como en Móvil - Android e iOS):
+   - Por seguridad y para evitar publicidad molesta, TODOS los navegadores modernos (Chrome, Safari, Edge, Firefox, etc.) prohíben estrictamente que una página web o PWA reproduzca audio automáticamente (sintetizado o MP3) si el usuario no ha realizado antes un gesto directo explícito en la pantalla (como presionar un botón de micrófono, un toque o clic).
+   - Sin esa interacción inicial del usuario, el navegador bloquea el Contexto de Audio (AudioContext) y rechaza la reproducción de voz.
+
+B. ARQUITECTURA PETICIÓN-RESPUESTA Y ESTADO EN NAVEGADOR:
+   - Gemini es un modelo de lenguaje que se ejecuta en servidores en la nube (a través de Edge Functions de Supabase) bajo una arquitectura de Petición -> Respuesta.
+   - Gemini no es un proceso residente o un programa ejecutándose de fondo en tu procesador; solo despierta cuando tu cliente (el navegador) le envía un mensaje o cuando un evento programado en tu dispositivo local (un reloj de JavaScript) llega a su hora de ejecución.
+
+--------------------------------------------------------------------
+2. ¿POR QUÉ NO SONABAN LAS ALARMAS / RECORDATORIOS O SE PROGRAMABAN A OTRA HORA O NO APARECÍAN?
+--------------------------------------------------------------------
+A. CÁLCULO DE TIEMPO RELATIVO EN EXPRESIONES COMO "EN 3 MINUTOS":
+   - Cuando le decías a Gemini "recuérdame en 3 minutos...", Gemini interpretaba el número "3" como una hora fija (03:00 AM) en lugar de tomar la HORA ACTUAL EXACTA y sumarle 3 minutos.
+   - Al no tener Gemini en su contexto la hora exacta del usuario en tiempo real en ese instante (por ejemplo, 15:45 + 3 min = 15:48), asignaba "03:00" o "08:00" como hora por defecto.
+
+B. SOBREESCRITURA DE ALARMAS LOCALES AL CAMBIAR DE VENTANA/PÁGINA:
+   - Al abrir `recordatorios.html` o `alarmas.html`, el script consultaba a Supabase para listar los recordatorios. Si la regla creada por Gemini en el navegador aún no se había sincronizado con la base de datos de Supabase, la lista de Supabase sobreescribía los datos locales y borraba el recordatorio recién creado.
+
+C. MOTOR DE EJECUCIÓN SÓLO ACTIVO EN LA PÁGINA PRINCIPAL:
+   - El motor encargado de verificar cada segundo si una alarma o recordatorio debía sonar (`checkAndExecuteAlarms`) solo estaba cargado en `index.html`. Si estabas navegando en `recordatorios.html`, `notas.html` o `aprender.html`, la alarma no podía ejecutarse de fondo.
+
+--------------------------------------------------------------------
+3. SOLUCIONES DEFINITIVAS IMPLEMENTADAS EN EL PROYECTO:
+--------------------------------------------------------------------
+1. CONTEXTO DE FECHA Y HORA EN TIEMPO REAL:
+   - Ahora, en cada interacción con Gemini, se envía automáticamente la fecha y hora exacta actual del usuario (ejemplo: `2025-05-20 15:45`).
+   - El sistema de parsing en el cliente y en la Edge Function ahora detecta expresiones de tiempo relativo ("en 3 minutos", "en 10 minutos", "en 1 hora") y calcula la hora exacta en tiempo real (ej: 15:48) guardando el recordatorio inmediatamente.
+
+2. MOTOR DE ALARMAS Y CHATBOT GLOBAL EN TODAS LAS PÁGINAS:
+   - El motor de verificación y el chatbot completo ahora funcionan y están integrados en TODAS las páginas HTML (`index.html`, `alarmas.html`, `recordatorios.html`, `notas.html`, `aprender.html`, `translate.html`).
+   - Tu alarma o recordatorio sonará puntualmente sin importar en qué página de la app te encuentres.
+
+3. PERSISTENCIA DE CONVERSACIÓN ENTRE PÁGINAS:
+   - La conversación con Gemini se almacena en `sessionStorage`, de modo que al navegar entre secciones (`alarmas.html`, `notas.html`, etc.) no pierdes tu bot ni el historial del chat, y este se conserva hasta que refresques o cierres la página.
+
+4. EDICIÓN COMPLETA SIN ALERTAS NI PROMPTS:
+   - Se eliminaron por completo las ventanas nativas `alert()` y `prompt()`.
+   - Ahora cuentas con un modal emergente profesional para editar completamente tus alarmas y recordatorios (nombre, mensaje, hora, fecha, días de la semana y estado activo), tanto de forma manual en la interfaz como hablándole a Gemini.

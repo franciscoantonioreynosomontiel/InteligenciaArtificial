@@ -35,11 +35,13 @@ interface RequestBody {
   image_url?: string;
   knowledge_context?: string;
   location_context?: string;
+  time_context?: string;
 }
 
 interface FunctionParameterProperty {
   type: string;
   description: string;
+  items?: { type: string };
 }
 
 interface FunctionDeclaration {
@@ -98,7 +100,7 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
     functionDeclarations: [
       {
         name: "crear_alarma",
-        description: "Crea y programa una nueva alarma sonora con hora fija (HH:MM). Usar SOLO para despertares o alertas horarias.",
+        description: "Crea y programa una nueva alarma sonora con hora fija (HH:MM). Usar para despertares o alertas horarias.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -112,16 +114,48 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
       },
       {
         name: "crear_recordatorio",
-        description: "Crea un recordatorio agendado con fecha y/o hora (HH:MM) para recordar un evento o tarea en un momento especifico. NO usar para notas o listas de compras sin hora.",
+        description: "Crea un recordatorio agendado con fecha y/o hora (HH:MM) para recordar un evento o tarea en un momento especifico (ej: 'en 3 minutos', 'a las 5:00 PM'). Para expresiones de tiempo relativo ('en 3 minutos'), calcula la hora exacta sumando los minutos a la hora actual local.",
         parameters: {
           type: "OBJECT",
           properties: {
             nombre: { type: "STRING", description: "Asunto o titulo del recordatorio" },
-            hora: { type: "STRING", description: "Hora de ejecucion (HH:MM)" },
+            hora: { type: "STRING", description: "Hora exacta de ejecucion en formato 24h (HH:MM)" },
             fecha: { type: "STRING", description: "Fecha de ejecucion (YYYY-MM-DD)" },
             mensaje: { type: "STRING", description: "Texto detallado que dira la IA" }
           },
           required: ["nombre", "hora"]
+        }
+      },
+      {
+        name: "editar_alarma",
+        description: "Edita una alarma existente buscando por su nombre. Permite cambiar titulo/nombre, hora (HH:MM), fecha, mensaje o estado activo.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre_buscar: { type: "STRING", description: "Nombre actual de la alarma a modificar" },
+            nuevo_nombre: { type: "STRING", description: "Nuevo titulo o nombre de la alarma" },
+            nueva_hora: { type: "STRING", description: "Nueva hora en formato 24h (HH:MM)" },
+            nueva_fecha: { type: "STRING", description: "Nueva fecha en formato YYYY-MM-DD" },
+            nuevo_mensaje: { type: "STRING", description: "Nuevo mensaje de voz" },
+            activo: { type: "BOOLEAN", description: "true para activar, false para desactivar" }
+          },
+          required: ["nombre_buscar"]
+        }
+      },
+      {
+        name: "editar_recordatorio",
+        description: "Edita un recordatorio existente buscando por su nombre. Permite cambiar asunto/nombre, hora (HH:MM), fecha, mensaje o estado activo.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            nombre_buscar: { type: "STRING", description: "Nombre actual del recordatorio a modificar" },
+            nuevo_nombre: { type: "STRING", description: "Nuevo asunto o nombre del recordatorio" },
+            nueva_hora: { type: "STRING", description: "Nueva hora en formato 24h (HH:MM)" },
+            nueva_fecha: { type: "STRING", description: "Nueva fecha en formato YYYY-MM-DD" },
+            nuevo_mensaje: { type: "STRING", description: "Nuevo mensaje de voz" },
+            activo: { type: "BOOLEAN", description: "true para activar, false para desactivar" }
+          },
+          required: ["nombre_buscar"]
         }
       },
       {
@@ -293,7 +327,7 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt, message, history, image, image_url } = body;
+    const { prompt, message, history, image, image_url, time_context } = body;
     const userPrompt = (prompt || message || 'Hola').trim();
 
     const apiKey = (
@@ -348,20 +382,25 @@ serve(async (req: Request) => {
           text: `Eres un asistente de Inteligencia Artificial extraordinariamente inteligente, capaz, brillante, alegre y atento. No tienes nombre.
 Tienes conocimientos amplios y profundos sobre programación, matemáticas, física, tecnología, cocina, ciencias, modelado 3D (Blender, GLB/GLTF), desarrollo web y conversación general.
 
+${time_context ? `CONTEXTO TEMPORAL EN TIEMPO REAL: ${time_context}\nUsa siempre esta fecha y hora local como punto de referencia obligatorio para calcular tiempos relativos ("en 3 minutos", "en 10 minutos", "en 1 hora", etc.).` : ''}
+
 REGLAS ABSOLUTAS E IMPERATIVAS:
 1. Responde UNICAMENTE con la respuesta final directa y clara en español.
 2. Queda STRICTAMENTE PROHIBIDO incluir pensamientos internos, notas de razonamiento, traducciones al inglés, borradores de pasos, desgloses de preguntas o metacomentarios.
 3. Si te hacen preguntas matemáticas o de cálculo (por ejemplo "1 mas 1"), responde el resultado directo ("El resultado de 1 + 1 es 2").
 4. Si te piden explicaciones o recetas (por ejemplo pastel de 3 leches o importar GLB a Blender), entrega la guía completa paso a paso con todos sus detalles directamente en español sin prefijos ni borradores.
 5. NUNCA respondas con plantillas ni mensajes evasivos como "Con mucho gusto te ayudo, ¿qué aspecto quieres profundizar?". RESPONDE DE UNA VEZ LA CONSULTA.
-6. DISTINCION CRITICA Y GESTION DE NOTAS Y LISTAS:
+6. CÁLCULO DE TIEMPO RELATIVO Y ALARMAS/RECORDATORIOS:
+   - Para expresiones como "en 3 minutos" o "en 10 minutos", SUMA exactamente esa cantidad de minutos a la hora actual indicada en el contexto temporal y genera el recordatorio/alarma con la hora calculada (HH:MM) y la fecha de hoy (YYYY-MM-DD).
+   - Para MODIFICAR O EDITAR una alarma o recordatorio existente (ej: "cambia la hora del recordatorio X a las 8:00"), usa 'editar_recordatorio' o 'editar_alarma'.
+7. DISTINCION CRITICA Y GESTION DE NOTAS Y LISTAS:
    - NOTAS Y LISTAS DE COMPRAS/TAREAS: Si el usuario menciona "nota", "post-it", "anota", "haz una lista...", o si pide guardar o modificar elementos sin hora especifica:
      - Para crear una NOTA NUEVA: usa 'crear_nota'. Si el usuario no indico el nombre/titulo, preguntale directamente: "¿Con qué nombre te gustaría guardar tu nota?".
      - Para MODIFICAR O AGREGAR elementos a una nota existente (ej: "agrega salsa a la lista de compras", "pon dentro esto", "cambia el color a rosado"): usa OBLIGATORIAMENTE 'editar_nota'. NUNCA dupliques ni crees otra nota si ya existe una nota previa relevante.
      - Para MARCAR ELEMENTOS COMPRADOS/COMPLETADOS (ej: "ya compré salsa", "marca perfume", "tacha azúcar"): usa OBLIGATORIAMENTE 'marcar_item_nota' con completado=true.
      - Para RESPONDER QUE FALTA POR COMPRAR O COMPLETAR: Revisa el contenido de las notas en el contexto recibido o invoca 'consultar_notas', y responde mencionando UNICAMENTE los elementos que aun NO estan marcados como completados ([ ]).
      - Para ELIMINAR una nota: usa 'eliminar_nota'.
-   - RECORDATORIOS: Invoca 'crear_recordatorio' SOLO cuando te pidan explícitamente recordar algo a una hora/fecha determinada ("recuérdame a las 5", "crea un recordatorio para mañana").
+   - RECORDATORIOS: Invoca 'crear_recordatorio' SOLO cuando te pidan explícitamente recordar algo a una hora/fecha determinada ("recuérdame a las 5", "crea un recordatorio para mañana", "recuérdame en 3 minutos").
    - ALARMAS: Invoca 'crear_alarma' SOLO cuando pidan una alarma sonora o despertar a una hora determinada ("pon una alarma a las 7 am").`
         }
       ]
