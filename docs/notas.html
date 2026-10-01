@@ -54,6 +54,20 @@
           <textarea id="note-content-input" class="form-textarea" style="min-height: 80px;"></textarea>
         </div>
 
+        <!-- Checklist Items Manager -->
+        <div class="form-group">
+          <label>Lista con casillas de verificacion</label>
+          <div id="checklist-editor" class="checklist-editor">
+            <div class="checklist-add-row" style="display: flex; gap: 8px; margin-bottom: 8px;">
+              <input type="text" id="checklist-item-input" class="form-input" placeholder="Elemento a comprar o realizar...">
+              <button type="button" id="btn-add-checklist-item" class="btn-tool" style="white-space: nowrap;">Agregar</button>
+            </div>
+            <div id="checklist-items-list" class="checklist-items-list">
+              <!-- Rendered checklist items in modal -->
+            </div>
+          </div>
+        </div>
+
         <div class="form-row" style="gap: 16px; flex-wrap: wrap;">
           <!-- Color Picker -->
           <div class="form-group flex-1">

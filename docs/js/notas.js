@@ -14,6 +14,7 @@ let activeViewingNote = null;
 let selectedColor = '#fef08a';
 let uploadedImageUrl = null;
 let uploadedImageBase64 = null;
+let modalChecklistItems = [];
 
 // Drawing Canvas State
 let isDrawing = false;
@@ -48,6 +49,7 @@ async function fetchSupabaseNotes() {
         db_id: n.id,
         title: n.title,
         content: n.content,
+        items: Array.isArray(n.items) ? n.items : [],
         color: n.color || '#fef08a',
         imageUrl: n.image_url,
         drawingData: n.drawing_data,
@@ -109,6 +111,18 @@ function renderNotesBoard() {
 
     card.style.cursor = 'pointer';
 
+    let checklistHtml = '';
+    if (Array.isArray(note.items) && note.items.length > 0) {
+      checklistHtml = `<div class="postit-checklist">` +
+        note.items.map((it, itemIdx) => `
+          <label class="postit-checklist-item ${it.completed ? 'completed' : ''}" data-idx="${itemIdx}">
+            <input type="checkbox" class="postit-card-checkbox" ${it.completed ? 'checked' : ''} data-note-id="${note.id}" data-item-idx="${itemIdx}">
+            <span>${escapeHtml(it.text)}</span>
+          </label>
+        `).join('') +
+        `</div>`;
+    }
+
     card.innerHTML = `
       <div class="postit-header">
         <span class="postit-pin">📌</span>
@@ -121,10 +135,27 @@ function renderNotesBoard() {
 
       <div class="postit-body">
         ${note.content ? `<p class="postit-text">${escapeHtml(note.content)}</p>` : ''}
+        ${checklistHtml}
         ${drawingHtml}
         ${imageHtml}
       </div>
     `;
+
+    // Interactive Checkboxes on Card
+    card.querySelectorAll('.postit-card-checkbox').forEach((cb) => {
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        const itemIdx = parseInt(cb.getAttribute('data-item-idx'));
+        if (Array.isArray(note.items) && note.items[itemIdx] !== undefined) {
+          note.items[itemIdx].completed = cb.checked;
+          saveLocalNotes();
+          syncUpdateNoteToSupabase(note);
+        }
+      });
+    });
 
     card.addEventListener('click', () => {
       openNoteViewModal(note);
@@ -273,6 +304,28 @@ function setupModalEvents() {
     });
   }
 
+  const btnAddChecklistItem = document.getElementById('btn-add-checklist-item');
+  const checklistInput = document.getElementById('checklist-item-input');
+
+  if (btnAddChecklistItem && checklistInput) {
+    const addCurrentChecklistItem = () => {
+      const text = checklistInput.value.trim();
+      if (text) {
+        modalChecklistItems.push({ text: text, completed: false });
+        checklistInput.value = '';
+        renderModalChecklistItems();
+      }
+    };
+
+    btnAddChecklistItem.addEventListener('click', addCurrentChecklistItem);
+    checklistInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCurrentChecklistItem();
+      }
+    });
+  }
+
   if (btnSave) {
     btnSave.addEventListener('click', handleSaveNote);
   }
@@ -308,6 +361,39 @@ function setupModalEvents() {
   }
 }
 
+function renderModalChecklistItems() {
+  const listElem = document.getElementById('checklist-items-list');
+  if (!listElem) return;
+
+  listElem.innerHTML = '';
+  modalChecklistItems.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'checklist-item-row';
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '8px';
+    row.style.marginTop = '6px';
+
+    row.innerHTML = `
+      <input type="checkbox" ${item.completed ? 'checked' : ''} class="postit-card-checkbox">
+      <span class="checklist-item-text ${item.completed ? 'completed' : ''}" style="flex:1; font-family:'Caveat', cursive; font-size:1.2rem;">${escapeHtml(item.text)}</span>
+      <button type="button" class="btn-delete-item btn-tool" style="padding: 2px 8px; font-size: 0.85rem;">✕</button>
+    `;
+
+    row.querySelector('input[type="checkbox"]').addEventListener('change', (e) => {
+      modalChecklistItems[idx].completed = e.target.checked;
+      renderModalChecklistItems();
+    });
+
+    row.querySelector('.btn-delete-item').addEventListener('click', () => {
+      modalChecklistItems.splice(idx, 1);
+      renderModalChecklistItems();
+    });
+
+    listElem.appendChild(row);
+  });
+}
+
 function openNoteViewModal(note) {
   const viewModal = document.getElementById('note-view-modal');
   const viewCard = document.getElementById('note-view-card');
@@ -328,8 +414,34 @@ function openNoteViewModal(note) {
 
   if (viewTitle) viewTitle.textContent = note.title || '';
   if (viewContent) {
-    viewContent.textContent = note.content || '';
-    viewContent.style.display = note.content ? 'block' : 'none';
+    let contentHtml = '';
+    if (note.content) {
+      contentHtml += `<p style="margin-bottom: 12px;">${escapeHtml(note.content)}</p>`;
+    }
+    if (Array.isArray(note.items) && note.items.length > 0) {
+      contentHtml += `<div class="postit-checklist">` +
+        note.items.map((it, idx) => `
+          <label class="postit-checklist-item ${it.completed ? 'completed' : ''}" style="font-size: 1.35rem; margin-bottom: 6px;">
+            <input type="checkbox" class="view-modal-checkbox" ${it.completed ? 'checked' : ''} data-item-idx="${idx}">
+            <span>${escapeHtml(it.text)}</span>
+          </label>
+        `).join('') +
+        `</div>`;
+    }
+    viewContent.innerHTML = contentHtml;
+    viewContent.style.display = (note.content || (Array.isArray(note.items) && note.items.length > 0)) ? 'block' : 'none';
+
+    viewContent.querySelectorAll('.view-modal-checkbox').forEach((cb) => {
+      cb.addEventListener('change', (e) => {
+        const itemIdx = parseInt(cb.getAttribute('data-item-idx'));
+        if (Array.isArray(note.items) && note.items[itemIdx] !== undefined) {
+          note.items[itemIdx].completed = cb.checked;
+          saveLocalNotes();
+          syncUpdateNoteToSupabase(note);
+          openNoteViewModal(note);
+        }
+      });
+    });
   }
 
   if (viewDrawingBox && viewDrawing) {
@@ -392,6 +504,7 @@ function openNoteModal(noteToEdit = null) {
     if (modalTitle) modalTitle.textContent = 'Editar Nota Post-it';
     if (titleInput) titleInput.value = noteToEdit.title || '';
     if (contentInput) contentInput.value = noteToEdit.content || '';
+    modalChecklistItems = Array.isArray(noteToEdit.items) ? JSON.parse(JSON.stringify(noteToEdit.items)) : [];
 
     selectedColor = noteToEdit.color || '#fef08a';
     document.querySelectorAll('.color-swatch').forEach((s) => {
@@ -420,11 +533,14 @@ function openNoteModal(noteToEdit = null) {
     if (modalTitle) modalTitle.textContent = 'Nueva Nota Post-it';
     if (titleInput) titleInput.value = '';
     if (contentInput) contentInput.value = '';
+    modalChecklistItems = [];
     selectedColor = '#fef08a';
     document.querySelectorAll('.color-swatch').forEach((s) => {
       s.classList.toggle('active', s.getAttribute('data-color') === '#fef08a');
     });
   }
+
+  renderModalChecklistItems();
 
   if (modal) modal.classList.add('open');
 }
@@ -469,6 +585,7 @@ async function handleSaveNote() {
     if (idx !== -1) {
       notes[idx].title = title;
       notes[idx].content = content;
+      notes[idx].items = modalChecklistItems;
       notes[idx].color = selectedColor;
       notes[idx].width = width;
       notes[idx].height = height;
@@ -482,6 +599,7 @@ async function handleSaveNote() {
       id: 'note_' + Date.now(),
       title: title,
       content: content,
+      items: modalChecklistItems,
       color: selectedColor,
       imageUrl: finalImageUrl,
       drawingData: drawingData,
@@ -506,6 +624,7 @@ async function syncCreateNoteToSupabase(note) {
     const { data, error } = await supabase.from('notes').insert([{
       title: note.title,
       content: note.content,
+      items: note.items || [],
       color: note.color,
       image_url: note.imageUrl,
       drawing_data: note.drawingData,
@@ -528,6 +647,7 @@ async function syncUpdateNoteToSupabase(note) {
       await supabase.from('notes').update({
         title: note.title,
         content: note.content,
+        items: note.items || [],
         color: note.color,
         image_url: note.imageUrl,
         drawing_data: note.drawingData,
@@ -537,6 +657,7 @@ async function syncUpdateNoteToSupabase(note) {
     } else {
       await supabase.from('notes').update({
         content: note.content,
+        items: note.items || [],
         color: note.color,
         image_url: note.imageUrl,
         drawing_data: note.drawingData
