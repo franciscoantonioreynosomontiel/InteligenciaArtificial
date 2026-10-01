@@ -461,6 +461,11 @@
         <input type="text" id="music-search" class="search-input" placeholder="Buscar canción, álbum o cantante...">
       </div>
 
+      <!-- Cloudinary Upload Controls -->
+      <input type="file" id="music-upload-input" accept="audio/*" style="display: none;">
+      <button id="btn-upload-music" style="padding: 10px 16px; border-radius: 12px; background: #8b5cf6; color: #ffffff; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; text-align: center; margin-bottom: 12px; width: 100%; box-sizing: border-box;">Subir Canción a Cloudinary</button>
+      <div id="upload-status" style="font-size: 0.8rem; color: #6d28d9; text-align: center; margin-bottom: 8px; display: none;"></div>
+
       <div id="music-library-list" class="music-list">
         <!-- Dynamically populated songs/albums/artists -->
       </div>
@@ -469,12 +474,6 @@
     <!-- Main Player Section -->
     <main class="player-main">
 
-      <!-- Floating Thought Bubble -->
-      <div class="music-thought-container">
-        <div class="music-thought-bubble">
-          <p id="thought-text">¡Hola! Toca mi personaje para hablar conmigo o pedirme música.</p>
-        </div>
-      </div>
 
       <!-- Current Track Info & Cover -->
       <div class="track-card">
