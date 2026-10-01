@@ -21,6 +21,7 @@ interface Track {
 }
 
 interface RequestBody {
+  action?: string;
   prompt?: string;
   message?: string;
   history?: Array<{ role: string; content: string }>;
@@ -84,6 +85,71 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
+
+    // Action to fetch live Cloudinary tracks using Secret Key 'musica api'
+    if (body.action === 'list_cloudinary' || body.action === 'list_tracks') {
+      const cloudinaryApiKey = '948282921511399';
+      const cloudinarySecret = (
+        Deno.env.get('musica api') ||
+        Deno.env.get('MUSICA_API') ||
+        Deno.env.get('CLOUDINARY_API_SECRET') ||
+        Deno.env.get('CLOUDINARY_SECRET') ||
+        ''
+      ).trim();
+
+      const tracks: Track[] = [];
+
+      if (cloudinarySecret) {
+        try {
+          const authString = btoa(`${cloudinaryApiKey}:${cloudinarySecret}`);
+          const cldUrl = `https://api.cloudinary.com/v1_1/dp776nphp/resources/video?max_results=100`;
+          const cldRes = await fetch(cldUrl, {
+            headers: {
+              'Authorization': `Basic ${authString}`
+            }
+          });
+
+          if (cldRes.ok) {
+            const cldData = await cldRes.json();
+            if (cldData && Array.isArray(cldData.resources)) {
+              cldData.resources.forEach((r: any) => {
+                const rawName = (r.public_id || '').split('/').pop() || 'Canción Cloudinary';
+                const cleanTitle = rawName.replace(/[-_]/g, ' ').trim();
+                tracks.push({
+                  id: r.public_id || ('cld-' + Math.random()),
+                  title: cleanTitle || 'Canción Cloudinary',
+                  artist: 'Cloudinary',
+                  album: 'Mi Música Cloudinary',
+                  url: r.secure_url || r.url,
+                  cover: './assets/img/logopwa.png',
+                  duration: '06:12'
+                });
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Error al listar archivos de Cloudinary:', e);
+        }
+      }
+
+      // Fallback default track if secret is missing or returns empty
+      if (tracks.length === 0) {
+        tracks.push({
+          id: 'cld-p77nsjwwltyve2oryjv3',
+          title: 'Canción Cloudinary 1',
+          artist: 'Cloudinary',
+          album: 'Mi Música Cloudinary',
+          url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
+          cover: './assets/img/logopwa.png',
+          duration: '06:12'
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ tracks }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const userPrompt = (body.prompt || body.message || 'ponme musica').trim();
     const library: Track[] = Array.isArray(body.library) ? body.library : [];
     const currentIndex = typeof body.current_index === 'number' ? body.current_index : 0;

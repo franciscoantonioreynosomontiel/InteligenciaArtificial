@@ -74,7 +74,43 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
   loadTrack(currentTrackIndex, false);
   renderLibraryList();
+  fetchCloudinaryTracksFromEdge();
 });
+
+async function fetchCloudinaryTracksFromEdge() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/musica`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ action: 'list_cloudinary' })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
+        // Merge fetched Cloudinary tracks with existing local tracks
+        const existingUrls = new Set(MUSIC_LIBRARY.map(t => t.url));
+        let addedCount = 0;
+        data.tracks.forEach(track => {
+          if (!existingUrls.has(track.url)) {
+            MUSIC_LIBRARY.push(track);
+            existingUrls.add(track.url);
+            addedCount++;
+          }
+        });
+        if (addedCount > 0 || MUSIC_LIBRARY.length > 0) {
+          saveStoredMusicLibrary(MUSIC_LIBRARY);
+          renderLibraryList();
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('No se pudieron obtener temas remotos de Cloudinary:', e);
+  }
+}
 
 function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
