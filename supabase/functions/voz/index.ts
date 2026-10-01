@@ -56,10 +56,21 @@ serve(async (req: Request) => {
 
         if (!voicesRes.ok) {
           const errData = await voicesRes.json().catch(() => ({}));
+          const errMsg = errData.detail?.message || '';
+          if (errMsg.includes('voices_read') || errMsg.includes('missing_permissions')) {
+            return new Response(
+              JSON.stringify({
+                voices: [],
+                error: 'Tu API Key de ElevenLabs necesita el permiso "voices_read" activado. Ve a ElevenLabs -> API Keys y activalo para cargar las voces de tu cuenta.'
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
           return new Response(
             JSON.stringify({
               voices: [],
-              error: `Error al consultar tu cuenta de ElevenLabs: ${errData.detail?.message || 'Verifica tu API Key'}`
+              error: `Error al consultar tu cuenta de ElevenLabs: ${errMsg || 'Verifica tu API Key'}`
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
