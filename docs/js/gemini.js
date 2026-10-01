@@ -46,9 +46,13 @@ function getStoredNotesPrompt() {
     const items = JSON.parse(raw);
     if (!Array.isArray(items) || items.length === 0) return '';
 
-    let noteStr = '\n\nNotas tipo Post-it guardadas:\n';
+    let noteStr = '\n\nNotas y Listas Post-it guardadas:\n';
     items.forEach((item, index) => {
-      noteStr += `${index + 1}. Titulo: "${item.title}" | Contenido: "${item.content || ''}"\n`;
+      let itemsListStr = '';
+      if (Array.isArray(item.items) && item.items.length > 0) {
+        itemsListStr = ' | Elementos checklist: ' + item.items.map(i => `[${i.completed ? '✓ COMPLETO' : '  PENDIENTE'}] ${i.text}`).join(', ');
+      }
+      noteStr += `${index + 1}. Titulo: "${item.title}" | Contenido: "${item.content || ''}"${itemsListStr} | Color: ${item.color || '#fef08a'}\n`;
     });
     return noteStr;
   } catch (e) {
@@ -126,6 +130,7 @@ async function syncNoteToSupabase(item) {
     const { data, error } = await supabase.from('notes').insert([{
       title: item.title,
       content: item.content,
+      items: item.items || [],
       color: item.color || '#fef08a',
       image_url: item.imageUrl || item.image_url || null,
       width: item.width || 260,
@@ -146,6 +151,37 @@ async function syncNoteToSupabase(item) {
     }
   } catch (e) {
     console.warn('Could not sync note to Supabase:', e);
+  }
+}
+
+async function syncUpdateNoteToSupabase(item) {
+  try {
+    if (item.db_id) {
+      await supabase.from('notes').update({
+        title: item.title,
+        content: item.content,
+        items: item.items || [],
+        color: item.color || '#fef08a',
+        image_url: item.imageUrl || item.image_url || null
+      }).eq('id', item.db_id);
+    } else {
+      await supabase.from('notes').update({
+        content: item.content,
+        items: item.items || [],
+        color: item.color || '#fef08a',
+        image_url: item.imageUrl || item.image_url || null
+      }).ilike('title', item.title);
+    }
+  } catch (e) {
+    console.warn('Could not sync updated note to Supabase:', e);
+  }
+}
+
+async function syncDeleteNoteFromSupabase(query) {
+  try {
+    await supabase.from('notes').delete().ilike('title', `%${query}%`);
+  } catch (e) {
+    console.warn('Could not sync deleted note to Supabase:', e);
   }
 }
 
@@ -232,6 +268,38 @@ export function downloadVCard(name, phone) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function parseNoteItems(itemsInput) {
+  if (!itemsInput) return [];
+  if (Array.isArray(itemsInput)) {
+    return itemsInput.map((it) => {
+      if (typeof it === 'object' && it !== null && it.text) {
+        return { text: String(it.text).trim(), completed: Boolean(it.completed) };
+      }
+      return { text: String(it).trim(), completed: false };
+    }).filter((it) => it.text.length > 0);
+  }
+  if (typeof itemsInput === 'string') {
+    return itemsInput
+      .split(/,|\n|;/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .map((s) => ({ text: s, completed: false }));
+  }
+  return [];
+}
+
+function parseItemsFromContent(contentStr) {
+  if (!contentStr || typeof contentStr !== 'string') return [];
+  if (contentStr.includes(',') || contentStr.includes('\n')) {
+    return contentStr
+      .split(/,|\n|;/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .map((s) => ({ text: s, completed: false }));
+  }
+  return [];
 }
 
 // Tool Execution Dispatcher for Alarms, Reminders, Knowledge, Locations, and Contacts
@@ -369,10 +437,36 @@ export function executeAlarmTool(toolName, args) {
     case 'crear_nota': {
       const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
       let nItems = nRaw ? JSON.parse(nRaw) : [];
+      const title = (args.titulo || 'Nueva Nota').trim();
+      const existingIdx = nItems.findIndex((n) => n.title.toLowerCase().trim() === title.toLowerCase());
+
+      const parsedItems = parseNoteItems(args.items || (args.contenido ? parseItemsFromContent(args.contenido) : []));
+
+      if (existingIdx !== -1) {
+        // Edit existing note instead of creating a duplicate
+        const target = nItems[existingIdx];
+        if (args.contenido) target.content = args.contenido;
+        if (args.color) target.color = args.color;
+        if (args.image_url || args.imageUrl) target.imageUrl = args.image_url || args.imageUrl;
+
+        if (parsedItems.length > 0) {
+          if (!Array.isArray(target.items)) target.items = [];
+          parsedItems.forEach((newIt) => {
+            if (!target.items.some((existingIt) => existingIt.text.toLowerCase() === newIt.text.toLowerCase())) {
+              target.items.push(newIt);
+            }
+          });
+        }
+        localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
+        syncUpdateNoteToSupabase(target);
+        return `Nota post-it "${target.title}" actualizada exitosamente.`;
+      }
+
       const newNote = {
         id: 'note_' + Date.now(),
-        title: args.titulo || 'Nueva Nota',
-        content: args.contenido || args.titulo || '',
+        title: title,
+        content: args.contenido || '',
+        items: parsedItems,
         color: args.color || '#fef08a',
         imageUrl: args.image_url || args.imageUrl || null,
         width: 260,
@@ -383,6 +477,112 @@ export function executeAlarmTool(toolName, args) {
       localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
       syncNoteToSupabase(newNote);
       return `Nota post-it "${newNote.title}" guardada exitosamente en notas.html.`;
+    }
+
+    case 'editar_nota': {
+      const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+      let nItems = nRaw ? JSON.parse(nRaw) : [];
+      const searchTitle = (args.titulo_buscar || '').toLowerCase().trim();
+
+      const target = nItems.find((n) => n.title.toLowerCase().includes(searchTitle) || searchTitle.includes(n.title.toLowerCase()));
+      if (!target) {
+        return `No se encontró ninguna nota que coincida con "${args.titulo_buscar}".`;
+      }
+
+      if (args.nuevo_titulo) target.title = args.nuevo_titulo.trim();
+      if (args.nuevo_contenido) target.content = args.nuevo_contenido.trim();
+      if (args.nuevo_color) target.color = args.nuevo_color;
+
+      const newItems = parseNoteItems(args.agregar_items || args.items);
+      if (newItems.length > 0) {
+        if (!Array.isArray(target.items)) target.items = [];
+        newItems.forEach((it) => {
+          const matchIdx = target.items.findIndex((ex) => ex.text.toLowerCase() === it.text.toLowerCase());
+          if (matchIdx !== -1) {
+            target.items[matchIdx] = it;
+          } else {
+            target.items.push(it);
+          }
+        });
+      }
+
+      localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
+      syncUpdateNoteToSupabase(target);
+      return `Nota post-it "${target.title}" actualizada exitosamente.`;
+    }
+
+    case 'eliminar_nota': {
+      const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+      let nItems = nRaw ? JSON.parse(nRaw) : [];
+      const query = (args.titulo || '').toLowerCase().trim();
+
+      const initialCount = nItems.length;
+      nItems = nItems.filter((n) => !n.title.toLowerCase().includes(query) && !query.includes(n.title.toLowerCase()));
+
+      if (nItems.length < initialCount) {
+        localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
+        syncDeleteNoteFromSupabase(query);
+        return `La nota post-it se eliminó correctamente.`;
+      }
+      return `No se encontró ninguna nota con el nombre "${args.titulo}".`;
+    }
+
+    case 'marcar_item_nota': {
+      const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+      let nItems = nRaw ? JSON.parse(nRaw) : [];
+      const noteTitle = (args.titulo_nota || '').toLowerCase().trim();
+
+      let target = nItems.find((n) => n.title.toLowerCase().includes(noteTitle) || noteTitle.includes(n.title.toLowerCase()));
+      if (!target && nItems.length > 0) {
+        target = nItems[nItems.length - 1]; // Use latest note if unspecified
+      }
+
+      if (!target) {
+        return 'No se encontró ninguna nota para marcar los elementos.';
+      }
+
+      if (!Array.isArray(target.items)) target.items = [];
+
+      const targetItemsToMark = parseNoteItems(args.items);
+      const isCompleted = args.completado !== false;
+      const markedNames = [];
+
+      targetItemsToMark.forEach((t) => {
+        const itemIdx = target.items.findIndex((i) => i.text.toLowerCase().includes(t.text.toLowerCase()) || t.text.toLowerCase().includes(i.text.toLowerCase()));
+        if (itemIdx !== -1) {
+          target.items[itemIdx].completed = isCompleted;
+          markedNames.push(target.items[itemIdx].text);
+        } else {
+          target.items.push({ text: t.text, completed: isCompleted });
+          markedNames.push(t.text);
+        }
+      });
+
+      localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(nItems));
+      syncUpdateNoteToSupabase(target);
+
+      const statusWord = isCompleted ? 'marcado(s) como comprado(s)' : 'desmarcado(s)';
+      return `Elemento(s) ${markedNames.join(', ')} ${statusWord} en la nota "${target.title}".`;
+    }
+
+    case 'consultar_notas': {
+      const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+      const nItems = nRaw ? JSON.parse(nRaw) : [];
+      if (nItems.length === 0) return 'No tienes notas guardadas actualmente.';
+
+      let result = 'Notas guardadas:\n';
+      nItems.forEach((n) => {
+        result += `- "${n.title}"`;
+        if (Array.isArray(n.items) && n.items.length > 0) {
+          const pending = n.items.filter((i) => !i.completed).map((i) => i.text);
+          const completed = n.items.filter((i) => i.completed).map((i) => i.text);
+          result += ` (Pendientes: ${pending.length > 0 ? pending.join(', ') : 'Ninguno'} | Comprados: ${completed.length > 0 ? completed.join(', ') : 'Ninguno'})`;
+        } else if (n.content) {
+          result += `: ${n.content}`;
+        }
+        result += '\n';
+      });
+      return result;
     }
 
     case 'eliminar_alarma':
@@ -619,8 +819,50 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     return `${result} Ha sido registrada en tu sección de Algoritmos en aprender.html.`;
   }
 
-  // Crear Nota Post-it
-  if (lower.includes('nota') || lower.includes('anota') || lower.includes('post-it') || lower.includes('postit')) {
+  // Marcar elementos comprados/completados
+  if (lower.includes('ya compre') || lower.includes('ya compré') || lower.includes('marca ') || lower.includes('marcar ') || lower.includes('tacha ')) {
+    const rawTarget = prompt.replace(/ya compre|ya compré|marca|marcar|tacha|por favor|en la lista|de la lista/gi, '').trim();
+    if (rawTarget.length > 0) {
+      const result = executeAlarmTool('marcar_item_nota', { items: rawTarget, completado: true });
+      return result;
+    }
+  }
+
+  // Consultar qué falta por comprar/completar
+  if (lower.includes('que me falta') || lower.includes('qué me falta') || lower.includes('que falta') || lower.includes('qué falta')) {
+    const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+    const nItems = nRaw ? JSON.parse(nRaw) : [];
+    if (nItems.length === 0) return 'No tienes notas ni listas de compras guardadas.';
+
+    const pendingItems = [];
+    nItems.forEach((n) => {
+      if (Array.isArray(n.items)) {
+        n.items.filter((i) => !i.completed).forEach((i) => pendingItems.push(`${i.text} (de "${n.title}")`));
+      }
+    });
+
+    if (pendingItems.length === 0) {
+      return '¡Felicidades! Ya compraste y completaste todos los elementos de tus listas.';
+    }
+    return `Te falta por comprar/completar: ${pendingItems.join(', ')}.`;
+  }
+
+  // Crear o modificar Nota Post-it
+  if (lower.includes('nota') || lower.includes('anota') || lower.includes('post-it') || lower.includes('postit') || lower.includes('agrega') || lower.includes('dentro pon')) {
+    const nRaw = localStorage.getItem(NOTES_STORAGE_KEY);
+    let nItems = nRaw ? JSON.parse(nRaw) : [];
+
+    // Check if user is asking to add items to an existing note
+    if (nItems.length > 0 && (lower.includes('agrega') || lower.includes('dentro') || lower.includes('pon lo siguiente') || lower.includes('actualiz') || lower.includes('modifica'))) {
+      const itemsToAdd = prompt.replace(/ok dentro|dentro|pon lo siguiente|si puedes|con checkbox|para ir marcando lo que compre|agrega|pon|añade|en la nota/gi, '').trim();
+      const lastNote = nItems[nItems.length - 1];
+      const result = executeAlarmTool('editar_nota', {
+        titulo_buscar: lastNote.title,
+        agregar_items: itemsToAdd
+      });
+      return `${result} Puedes verla en notas.html.`;
+    }
+
     let title = prompt.replace(/crea una nota|crear nota|haz una nota|anota|guarda una nota|post-it|postit|nota|con esta imagen|con esta foto|de esta imagen|de esta foto/gi, '').trim();
 
     const previousTurnWasPromptingName = chatHistory.length >= 2 &&
@@ -639,7 +881,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
     const noteData = {
       titulo: title,
-      contenido: title,
+      contenido: '',
       color: '#fef08a',
       image_url: imgData
     };

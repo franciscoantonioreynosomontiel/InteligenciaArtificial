@@ -1607,6 +1607,43 @@ input:checked + .switch-slider:before {
   word-wrap: break-word;
 }
 
+.postit-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.postit-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Caveat', cursive, sans-serif;
+  font-size: 1.25rem;
+  color: #2e1065;
+  cursor: pointer;
+  user-select: none;
+}
+
+.postit-checklist-item.completed span, .checklist-item-text.completed {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.postit-card-checkbox, .view-modal-checkbox {
+  accent-color: #8b5cf6;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.checklist-items-list {
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .postit-image-box img, .postit-drawing-box img {
   width: 100%;
   max-height: 150px;
