@@ -1,26 +1,15 @@
 // ====================================================================
-// SUPABASE EDGE FUNCTION PARA GEMINI AI (gemini-chat/index.ts)
-// ====================================================================
-// Esta funcion es la Edge Function avanzada para el asistente virtual de la PWA Amigo.
-// Incorpora:
-// 1. Detección dinamica de modelos de Google Gemini via `ListModels` API.
-// 2. Soporte completo para Function Calling (alarmas, recordatorios, FAQs, notas, ubicaciones).
-// 3. Conversacion fluida de varios turnos (multi-turn history).
-// 4. Analisis de imagenes multimodal (vision).
-// 5. Manejo avanzado de errores y reintentos automatizados sin frases estaticas.
-// 6. Filtrado y sanitizacion estricta para eliminar borradores o procesos de pensamiento interno.
+// SUPABASE EDGE FUNCTION PARA GEMINI AI (supabase/functions/gemini-chat/index.ts)
 // ====================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Configuración de encabezados CORS para llamadas desde cualquier origen habilitado
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-// Definicion de Interfaces de TypeScript
 interface GeminiPart {
   text?: string;
   inlineData?: {
@@ -45,6 +34,7 @@ interface RequestBody {
   image?: string;
   image_url?: string;
   knowledge_context?: string;
+  location_context?: string;
 }
 
 interface FunctionParameterProperty {
@@ -66,21 +56,14 @@ interface ToolDeclaration {
   functionDeclarations: FunctionDeclaration[];
 }
 
-// Limpieza y sanitizacion estricta de las respuestas devueltas por el modelo
 function sanitizeAIResponse(text: string): string {
   if (!text) return '';
   let clean = text;
 
-  // 1. Eliminar bloques de pensamiento o borradores <thought> o <think>
   clean = clean.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
-
-  // 2. Eliminar secciones de desglose de preguntas, borradores en ingles o razonamientos
   clean = clean.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:|\"como se hace|\"how to make)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
-
-  // 3. Eliminar prefijos de razonamiento o etiquetas internas
   clean = clean.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
-  // 4. Filtrar lineas de metadatos o viñetas internas en ingles
   const lines = clean.split('\n');
   const filtered = lines.filter(line => {
     const trimmed = line.trim();
@@ -105,14 +88,11 @@ function sanitizeAIResponse(text: string): string {
   });
 
   clean = filtered.join('\n').trim();
-
-  // 5. Limpiar formato sobrante de markdown
   clean = clean.replace(/[*_~`#]/g, '').trim();
 
   return clean;
 }
 
-// Herramientas / Declaracion de Funciones para Gemini Function Calling
 const TOOL_DECLARATIONS: ToolDeclaration[] = [
   {
     functionDeclarations: [
@@ -216,7 +196,6 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
   }
 ];
 
-// Descubrimiento dinamico de modelos disponibles via ListModels API
 async function discoverAvailableGeminiModels(apiKey: string): Promise<string[]> {
   const versions = ['v1beta', 'v1'];
   const foundModels: string[] = [];
@@ -264,7 +243,7 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt, message, history, image, image_url, knowledge_context, location_context } = body;
+    const { prompt, message, history, image, image_url } = body;
     const userPrompt = (prompt || message || 'Hola').trim();
 
     const apiKey = (
