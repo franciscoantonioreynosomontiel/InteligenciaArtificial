@@ -185,6 +185,256 @@
       text-overflow: ellipsis;
     }
 
+    /* Action buttons on track items */
+    .item-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-item-action {
+      background: none;
+      border: none;
+      color: #8b5cf6;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .btn-item-action:hover {
+      background: #ede9fe;
+    }
+
+    .btn-item-action.delete:hover {
+      background: #fee2e2;
+      color: #ef4444;
+    }
+
+    /* Albums Grid */
+    .albums-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+      padding: 4px;
+    }
+
+    .album-card {
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      border-radius: 14px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .album-card:hover {
+      background: #f3e8ff;
+      border-color: #c084fc;
+      transform: translateY(-2px);
+    }
+
+    .album-card-img {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      object-fit: cover;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 10px rgba(139, 92, 246, 0.15);
+    }
+
+    .album-card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1e1b4b;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .album-card-count {
+      font-size: 0.75rem;
+      color: #6d28d9;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    /* Album Header Row with + Add Album Button */
+    .albums-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .btn-add-album {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #8b5cf6;
+      color: #ffffff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-add-album:hover {
+      background: #7c3aed;
+    }
+
+    /* Modal Overlay & Styling */
+    .music-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .music-modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .music-modal-content {
+      background: #ffffff;
+      width: 100%;
+      max-width: 420px;
+      max-height: 85vh;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    .music-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 10px;
+    }
+
+    .music-modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1e1b4b;
+      margin: 0;
+    }
+
+    .modal-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4c1d95;
+    }
+
+    .modal-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid #ddd6fe;
+      background: #faf5ff;
+      font-size: 0.9rem;
+      color: #1e1b4b;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+
+    .btn-modal-cancel {
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-modal-save {
+      padding: 10px 18px;
+      border-radius: 12px;
+      border: none;
+      background: #8b5cf6;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-modal-delete {
+      padding: 10px 18px;
+      border-radius: 12px;
+      border: none;
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Checkbox list for album song selection */
+    .song-select-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ede9fe;
+      padding: 10px;
+      border-radius: 12px;
+      background: #faf5ff;
+    }
+
+    .song-select-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: #1e1b4b;
+      cursor: pointer;
+    }
+
 
     /* Main Player Layout */
     .player-main {
@@ -557,6 +807,95 @@
 
     </main>
 
+  </div>
+
+  <!-- Modal: Edit Track Details -->
+  <div id="modal-edit-track" class="music-modal-overlay">
+    <div class="music-modal-content">
+      <div class="music-modal-header">
+        <h3 class="music-modal-title">Editar Canción</h3>
+        <button class="btn-icon btn-close-modal" aria-label="Cerrar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label" for="edit-track-title">Nombre de la canción</label>
+        <input type="text" id="edit-track-title" class="modal-input">
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label" for="edit-track-artist">Cantante</label>
+        <input type="text" id="edit-track-artist" class="modal-input">
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label" for="edit-track-album">Álbum</label>
+        <input type="text" id="edit-track-album" class="modal-input">
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-edit-track" class="btn-modal-cancel">Cancelar</button>
+        <button id="btn-save-edit-track" class="btn-modal-save">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Delete Track Confirmation -->
+  <div id="modal-delete-track" class="music-modal-overlay">
+    <div class="music-modal-content">
+      <div class="music-modal-header">
+        <h3 class="music-modal-title">Eliminar Canción</h3>
+        <button class="btn-icon btn-close-modal" aria-label="Cerrar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <p id="delete-track-confirm-text" style="font-size: 0.95rem; color: #334155; margin: 8px 0;">¿Estás seguro de que deseas eliminar esta canción?</p>
+      <div class="modal-actions">
+        <button id="btn-cancel-delete-track" class="btn-modal-cancel">Cancelar</button>
+        <button id="btn-confirm-delete-track" class="btn-modal-delete">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create New Album -->
+  <div id="modal-create-album" class="music-modal-overlay">
+    <div class="music-modal-content">
+      <div class="music-modal-header">
+        <h3 class="music-modal-title">Crear Álbum</h3>
+        <button class="btn-icon btn-close-modal" aria-label="Cerrar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label" for="new-album-name">Nombre del álbum</label>
+        <input type="text" id="new-album-name" class="modal-input">
+      </div>
+      <div class="modal-form-group">
+        <label class="modal-label">Selecciona las canciones para este álbum</label>
+        <div id="create-album-songs-list" class="song-select-list">
+          <!-- Dynamically filled track list checkboxes -->
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-create-album" class="btn-modal-cancel">Cancelar</button>
+        <button id="btn-save-create-album" class="btn-modal-save">Crear Álbum</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: View Album Songs -->
+  <div id="modal-view-album" class="music-modal-overlay">
+    <div class="music-modal-content">
+      <div class="music-modal-header">
+        <h3 id="album-view-title" class="music-modal-title">Álbum</h3>
+        <button class="btn-icon btn-close-modal" aria-label="Cerrar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div id="album-view-songs-list" class="music-list" style="max-height: 350px;">
+        <!-- Dynamically filled tracks of the album -->
+      </div>
+      <div class="modal-actions">
+        <button id="btn-close-album-view" class="btn-modal-cancel">Cerrar</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./js/musica.js"></script>

@@ -25,7 +25,7 @@ function getStoredMusicLibrary() {
     }
     const items = JSON.parse(raw);
     if (Array.isArray(items) && items.length > 0) {
-      // Enforce strictly Cloudinary dp776nphp assets and update legacy titles
+      // Enforce strictly Cloudinary dp776nphp assets
       const cldTracks = items
         .filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/'))
         .map(t => {
@@ -57,6 +57,10 @@ let isRepeat = false;
 let activeFilterTab = 'songs'; // 'songs', 'albums', 'artists'
 let searchFilterQuery = '';
 
+// Edit & Delete Track Modal State
+let editingTrackIndex = -1;
+let deletingTrackIndex = -1;
+
 // Speech & Voice State
 let scene3D = null;
 let speechEnabled = true;
@@ -72,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSpeechRecognition();
   setupAudioPlayerEvents();
   setupUIEventListeners();
+  setupModalEventListeners();
   loadTrack(currentTrackIndex, false);
   renderLibraryList();
   fetchCloudinaryTracksFromEdge();
@@ -490,8 +495,9 @@ function setupUIEventListeners() {
           MUSIC_LIBRARY.push(newTrack);
           saveStoredMusicLibrary(MUSIC_LIBRARY);
           renderLibraryList();
-          loadTrack(MUSIC_LIBRARY.length - 1, true);
-          showToast(`Canción "${fileName}" subida a Cloudinary.`);
+
+          // Open edit modal for freshly uploaded track so user can set title & artist
+          openEditTrackModal(MUSIC_LIBRARY.length - 1);
 
           setTimeout(() => {
             if (uploadStatus) uploadStatus.style.display = 'none';
@@ -508,6 +514,257 @@ function setupUIEventListeners() {
   }
 }
 
+// Modals Handling (Edit, Delete, Create Album, View Album)
+function setupModalEventListeners() {
+  // Close modals when clicking close button
+  document.querySelectorAll('.btn-close-modal').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modal = e.target.closest('.music-modal-overlay');
+      if (modal) modal.classList.remove('open');
+    });
+  });
+
+  // Edit Track Modal Controls
+  const btnCancelEdit = document.getElementById('btn-cancel-edit-track');
+  const btnSaveEdit = document.getElementById('btn-save-edit-track');
+
+  if (btnCancelEdit) {
+    btnCancelEdit.addEventListener('click', () => {
+      document.getElementById('modal-edit-track')?.classList.remove('open');
+    });
+  }
+
+  if (btnSaveEdit) {
+    btnSaveEdit.addEventListener('click', () => {
+      if (editingTrackIndex >= 0 && editingTrackIndex < MUSIC_LIBRARY.length) {
+        const titleInput = document.getElementById('edit-track-title');
+        const artistInput = document.getElementById('edit-track-artist');
+        const albumInput = document.getElementById('edit-track-album');
+
+        const newTitle = titleInput ? titleInput.value.trim() : '';
+        const newArtist = artistInput ? artistInput.value.trim() : '';
+        const newAlbum = albumInput ? albumInput.value.trim() : '';
+
+        if (!newTitle) {
+          showToast('El nombre de la canción no puede estar vacío.');
+          return;
+        }
+
+        MUSIC_LIBRARY[editingTrackIndex].title = newTitle;
+        MUSIC_LIBRARY[editingTrackIndex].artist = newArtist || 'Cloudinary';
+        MUSIC_LIBRARY[editingTrackIndex].album = newAlbum || 'Mi Música';
+
+        saveStoredMusicLibrary(MUSIC_LIBRARY);
+        renderLibraryList();
+
+        if (editingTrackIndex === currentTrackIndex) {
+          loadTrack(currentTrackIndex, isPlaying);
+        }
+
+        showToast('Canción actualizada con éxito.');
+        document.getElementById('modal-edit-track')?.classList.remove('open');
+      }
+    });
+  }
+
+  // Delete Track Modal Controls
+  const btnCancelDelete = document.getElementById('btn-cancel-delete-track');
+  const btnConfirmDelete = document.getElementById('btn-confirm-delete-track');
+
+  if (btnCancelDelete) {
+    btnCancelDelete.addEventListener('click', () => {
+      document.getElementById('modal-delete-track')?.classList.remove('open');
+    });
+  }
+
+  if (btnConfirmDelete) {
+    btnConfirmDelete.addEventListener('click', () => {
+      if (deletingTrackIndex >= 0 && deletingTrackIndex < MUSIC_LIBRARY.length) {
+        const deletedTitle = MUSIC_LIBRARY[deletingTrackIndex].title;
+        MUSIC_LIBRARY.splice(deletingTrackIndex, 1);
+        saveStoredMusicLibrary(MUSIC_LIBRARY);
+
+        if (MUSIC_LIBRARY.length === 0) {
+          currentTrackIndex = 0;
+          audioPlayer.pause();
+          setIsPlaying(false);
+          const titleElem = document.getElementById('track-title');
+          const artistElem = document.getElementById('track-artist');
+          if (titleElem) titleElem.innerText = 'Selecciona una canción';
+          if (artistElem) artistElem.innerText = 'Biblioteca Amigo';
+        } else {
+          if (currentTrackIndex >= MUSIC_LIBRARY.length) {
+            currentTrackIndex = MUSIC_LIBRARY.length - 1;
+          }
+          loadTrack(currentTrackIndex, isPlaying);
+        }
+
+        renderLibraryList();
+        showToast(`Canción "${deletedTitle}" eliminada.`);
+        document.getElementById('modal-delete-track')?.classList.remove('open');
+      }
+    });
+  }
+
+  // Create Album Modal Controls
+  const btnCancelAlbum = document.getElementById('btn-cancel-create-album');
+  const btnSaveAlbum = document.getElementById('btn-save-create-album');
+
+  if (btnCancelAlbum) {
+    btnCancelAlbum.addEventListener('click', () => {
+      document.getElementById('modal-create-album')?.classList.remove('open');
+    });
+  }
+
+  if (btnSaveAlbum) {
+    btnSaveAlbum.addEventListener('click', () => {
+      const albumInput = document.getElementById('new-album-name');
+      const albumName = albumInput ? albumInput.value.trim() : '';
+
+      if (!albumName) {
+        showToast('Escribe un nombre para el álbum.');
+        return;
+      }
+
+      const selectedCheckboxes = document.querySelectorAll('#create-album-songs-list input[type="checkbox"]:checked');
+      if (selectedCheckboxes.length === 0) {
+        showToast('Selecciona al menos una canción para el álbum.');
+        return;
+      }
+
+      selectedCheckboxes.forEach(cb => {
+        const idx = parseInt(cb.value, 10);
+        if (idx >= 0 && idx < MUSIC_LIBRARY.length) {
+          MUSIC_LIBRARY[idx].album = albumName;
+        }
+      });
+
+      saveStoredMusicLibrary(MUSIC_LIBRARY);
+      renderLibraryList();
+      showToast(`Álbum "${albumName}" creado.`);
+      document.getElementById('modal-create-album')?.classList.remove('open');
+    });
+  }
+
+  // View Album Modal Controls
+  const btnCloseAlbumView = document.getElementById('btn-close-album-view');
+  if (btnCloseAlbumView) {
+    btnCloseAlbumView.addEventListener('click', () => {
+      document.getElementById('modal-view-album')?.classList.remove('open');
+    });
+  }
+}
+
+function openEditTrackModal(index) {
+  if (index < 0 || index >= MUSIC_LIBRARY.length) return;
+  editingTrackIndex = index;
+  const track = MUSIC_LIBRARY[index];
+
+  const titleInput = document.getElementById('edit-track-title');
+  const artistInput = document.getElementById('edit-track-artist');
+  const albumInput = document.getElementById('edit-track-album');
+
+  if (titleInput) titleInput.value = track.title || '';
+  if (artistInput) artistInput.value = track.artist || '';
+  if (albumInput) albumInput.value = track.album || '';
+
+  const modal = document.getElementById('modal-edit-track');
+  if (modal) modal.classList.add('open');
+}
+
+function openDeleteTrackModal(index) {
+  if (index < 0 || index >= MUSIC_LIBRARY.length) return;
+  deletingTrackIndex = index;
+  const track = MUSIC_LIBRARY[index];
+
+  const textElem = document.getElementById('delete-track-confirm-text');
+  if (textElem) textElem.innerText = `¿Estás seguro de que deseas eliminar "${track.title}"?`;
+
+  const modal = document.getElementById('modal-delete-track');
+  if (modal) modal.classList.add('open');
+}
+
+function openCreateAlbumModal() {
+  const albumInput = document.getElementById('new-album-name');
+  if (albumInput) albumInput.value = '';
+
+  const listContainer = document.getElementById('create-album-songs-list');
+  if (listContainer) {
+    listContainer.innerHTML = '';
+    if (MUSIC_LIBRARY.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:0.85rem; color:#64748b;">No hay canciones disponibles.</div>';
+    } else {
+      MUSIC_LIBRARY.forEach((track, idx) => {
+        const itemLabel = document.createElement('label');
+        itemLabel.className = 'song-select-item';
+        itemLabel.innerHTML = `
+          <input type="checkbox" value="${idx}">
+          <span>${track.title} (${track.artist})</span>
+        `;
+        listContainer.appendChild(itemLabel);
+      });
+    }
+  }
+
+  const modal = document.getElementById('modal-create-album');
+  if (modal) modal.classList.add('open');
+}
+
+function openViewAlbumModal(albumName) {
+  const titleElem = document.getElementById('album-view-title');
+  if (titleElem) titleElem.innerText = `Álbum: ${albumName}`;
+
+  const listContainer = document.getElementById('album-view-songs-list');
+  if (listContainer) {
+    listContainer.innerHTML = '';
+    const albumTracks = MUSIC_LIBRARY.filter(t => t.album === albumName);
+
+    if (albumTracks.length === 0) {
+      listContainer.innerHTML = '<div style="text-align:center; padding:16px; color:#64748b; font-size:0.85rem;">No hay canciones en este álbum.</div>';
+    } else {
+      albumTracks.forEach(track => {
+        const globalIdx = MUSIC_LIBRARY.findIndex(t => t.id === track.id || t.url === track.url);
+        createMusicItemElement(track, listContainer, globalIdx);
+      });
+    }
+  }
+
+  const modal = document.getElementById('modal-view-album');
+  if (modal) modal.classList.add('open');
+}
+
+function moveTrackUp(index) {
+  if (index <= 0 || index >= MUSIC_LIBRARY.length) return;
+  const temp = MUSIC_LIBRARY[index];
+  MUSIC_LIBRARY[index] = MUSIC_LIBRARY[index - 1];
+  MUSIC_LIBRARY[index - 1] = temp;
+
+  if (currentTrackIndex === index) {
+    currentTrackIndex = index - 1;
+  } else if (currentTrackIndex === index - 1) {
+    currentTrackIndex = index;
+  }
+
+  saveStoredMusicLibrary(MUSIC_LIBRARY);
+  renderLibraryList();
+}
+
+function moveTrackDown(index) {
+  if (index < 0 || index >= MUSIC_LIBRARY.length - 1) return;
+  const temp = MUSIC_LIBRARY[index];
+  MUSIC_LIBRARY[index] = MUSIC_LIBRARY[index + 1];
+  MUSIC_LIBRARY[index + 1] = temp;
+
+  if (currentTrackIndex === index) {
+    currentTrackIndex = index + 1;
+  } else if (currentTrackIndex === index + 1) {
+    currentTrackIndex = index;
+  }
+
+  saveStoredMusicLibrary(MUSIC_LIBRARY);
+  renderLibraryList();
+}
+
 function renderLibraryList() {
   const container = document.getElementById('music-library-list');
   if (!container) return;
@@ -521,50 +778,98 @@ function renderLibraryList() {
            track.album.toLowerCase().includes(searchFilterQuery);
   });
 
-  if (filteredTracks.length === 0) {
-    container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
-    return;
-  }
-
   if (activeFilterTab === 'albums') {
+    // Render Album Grid with "+" button header
+    const headerRow = document.createElement('div');
+    headerRow.className = 'albums-section-header';
+    headerRow.innerHTML = `
+      <span style="font-weight:700; color:#4c1d95; font-size:0.95rem;">Tus Álbumes</span>
+      <button id="btn-add-album-header" class="btn-add-album">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <span>Crear Álbum</span>
+      </button>
+    `;
+    container.appendChild(headerRow);
+
+    const btnAddAlbum = headerRow.querySelector('#btn-add-album-header');
+    if (btnAddAlbum) btnAddAlbum.addEventListener('click', openCreateAlbumModal);
+
     const albums = {};
     filteredTracks.forEach(t => {
-      if (!albums[t.album]) albums[t.album] = [];
-      albums[t.album].push(t);
+      const albumKey = t.album || 'Sin Álbum';
+      if (!albums[albumKey]) albums[albumKey] = [];
+      albums[albumKey].push(t);
     });
 
-    Object.keys(albums).forEach(albumName => {
+    const albumKeys = Object.keys(albums);
+
+    if (albumKeys.length === 0) {
+      container.innerHTML += `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No se encontraron álbumes.</div>`;
+      return;
+    }
+
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'albums-grid';
+
+    albumKeys.forEach(albumName => {
       const albumTracks = albums[albumName];
-      const headerDiv = document.createElement('div');
-      headerDiv.style.cssText = 'font-weight:700; color:#5b21b6; margin:8px 0 4px 4px; font-size:0.9rem;';
-      headerDiv.innerText = `Álbum: ${albumName} (${albumTracks.length})`;
-      container.appendChild(headerDiv);
+      const coverArt = albumTracks[0]?.cover || './assets/img/logopwa.png';
 
-      albumTracks.forEach(track => createMusicItemElement(track, container));
+      const card = document.createElement('div');
+      card.className = 'album-card';
+      card.innerHTML = `
+        <img src="${coverArt}" class="album-card-img" alt="${albumName}">
+        <div class="album-card-title">${albumName}</div>
+        <div class="album-card-count">${albumTracks.length} canción${albumTracks.length === 1 ? '' : 'es'}</div>
+      `;
+
+      card.addEventListener('click', () => {
+        openViewAlbumModal(albumName);
+      });
+
+      gridDiv.appendChild(card);
     });
+
+    container.appendChild(gridDiv);
+
   } else if (activeFilterTab === 'artists') {
     const artists = {};
     filteredTracks.forEach(t => {
-      if (!artists[t.artist]) artists[t.artist] = [];
-      artists[t.artist].push(t);
+      const artistKey = t.artist || 'Artista Desconocido';
+      if (!artists[artistKey]) artists[artistKey] = [];
+      artists[artistKey].push(t);
     });
 
-    Object.keys(artists).forEach(artistName => {
+    const artistKeys = Object.keys(artists);
+
+    if (artistKeys.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay cantantes encontrados.</div>`;
+      return;
+    }
+
+    artistKeys.forEach(artistName => {
       const artistTracks = artists[artistName];
       const headerDiv = document.createElement('div');
-      headerDiv.style.cssText = 'font-weight:700; color:#5b21b6; margin:8px 0 4px 4px; font-size:0.9rem;';
+      headerDiv.style.cssText = 'font-weight:700; color:#5b21b6; margin:10px 0 6px 4px; font-size:0.9rem;';
       headerDiv.innerText = `Cantante: ${artistName} (${artistTracks.length})`;
       container.appendChild(headerDiv);
 
       artistTracks.forEach(track => createMusicItemElement(track, container));
     });
+
   } else {
+    // Default 'songs' view
+    if (filteredTracks.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
+      return;
+    }
+
     filteredTracks.forEach(track => createMusicItemElement(track, container));
   }
 }
 
-function createMusicItemElement(track, container) {
-  const itemIndex = MUSIC_LIBRARY.findIndex(t => t.id === track.id || t.url === track.url);
+function createMusicItemElement(track, container, customIndex = null) {
+  const itemIndex = customIndex !== null ? customIndex : MUSIC_LIBRARY.findIndex(t => t.id === track.id || t.url === track.url);
   const isCurrent = itemIndex === currentTrackIndex;
 
   const itemDiv = document.createElement('div');
@@ -575,13 +880,58 @@ function createMusicItemElement(track, container) {
       <div class="music-item-title">${track.title}</div>
       <div class="music-item-sub">${track.artist} • ${track.album}</div>
     </div>
-    <span style="font-size:0.75rem; color:#8b5cf6; font-weight:600;">${track.duration || '06:12'}</span>
+    <div class="item-actions">
+      <button class="btn-item-action move-up" title="Mover arriba" aria-label="Mover arriba">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+      </button>
+      <button class="btn-item-action move-down" title="Mover abajo" aria-label="Mover abajo">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <button class="btn-item-action edit" title="Editar canción" aria-label="Editar canción">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+      </button>
+      <button class="btn-item-action delete" title="Eliminar canción" aria-label="Eliminar canción">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      </button>
+    </div>
   `;
 
-  itemDiv.addEventListener('click', () => {
+  // Click row body to play song
+  itemDiv.querySelector('.music-item-info').addEventListener('click', () => {
     loadTrack(itemIndex, true);
     const hamburgerMenu = document.getElementById('hamburger-menu');
     if (hamburgerMenu) hamburgerMenu.classList.remove('open');
+    const modalViewAlbum = document.getElementById('modal-view-album');
+    if (modalViewAlbum) modalViewAlbum.classList.remove('open');
+  });
+
+  itemDiv.querySelector('.music-item-img').addEventListener('click', () => {
+    loadTrack(itemIndex, true);
+    const hamburgerMenu = document.getElementById('hamburger-menu');
+    if (hamburgerMenu) hamburgerMenu.classList.remove('open');
+    const modalViewAlbum = document.getElementById('modal-view-album');
+    if (modalViewAlbum) modalViewAlbum.classList.remove('open');
+  });
+
+  // Action Button Listeners
+  itemDiv.querySelector('.move-up').addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveTrackUp(itemIndex);
+  });
+
+  itemDiv.querySelector('.move-down').addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveTrackDown(itemIndex);
+  });
+
+  itemDiv.querySelector('.edit').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openEditTrackModal(itemIndex);
+  });
+
+  itemDiv.querySelector('.delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openDeleteTrackModal(itemIndex);
   });
 
   container.appendChild(itemDiv);
