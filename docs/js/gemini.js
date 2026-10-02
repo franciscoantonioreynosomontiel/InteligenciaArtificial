@@ -1016,17 +1016,17 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
   // Pastel de 3 leches
   if (lower.includes('pastel de 3 leches') || lower.includes('pastel de tres leches') || lower.includes('3 leches')) {
-    return 'Para hacer un pastel de tres leches tradicional: 1) Bizcocho: Bate 5 huevos con 1 taza de azúcar hasta esponjar, añade 1 cucharadita de vainilla y envolventemente 1 taza de harina de trigo con 1.5 cucharaditas de polvo para hornear. Hornea a 180°C por 25-30 minutos. 2) Mezcla de leches: Mezcla 1 lata de leche condensada, 1 lata de leche evaporada y 1 taza de crema de leche. 3) Ensamble: Pica el bizcocho ya frío con un tenedor y viértela lentamente toda la mezcla de tres leches. Cubre con crema batida y espolvorea canela.';
+    return '¡El pastel de tres leches es delicioso! Se prepara con un bizcocho esponjoso que se baña con una mezcla de leche condensada, leche evaporada y crema de leche. ¿Te gustaría que te comparta los ingredientes para el bizcocho o prefieres el paso a paso?';
   }
 
   // Importar GLB a Blender
   if (lower.includes('blender') || lower.includes('glb') || lower.includes('gltf')) {
-    return 'Para importar un archivo GLB o GLTF en Blender: 1) Abre Blender y ve al menú superior Archivo (File) -> Importar (Import). 2) Selecciona la opción glTF 2.0 (.glb/.gltf). 3) Selecciona el archivo en tu computadora y haz clic en Importar. El modelo aparecerá inmediatamente en la vista 3D con todas sus texturas y materiales.';
+    return 'Para importar un archivo GLB o GLTF en Blender, ve al menú Archivo -> Importar -> glTF 2.0 (.glb/.gltf) y selecciona tu archivo. ¿Hay algún problema específico con las texturas o el modelo que quieras revisar?';
   }
 
   // Desplegar Python en Render
   if (lower.includes('render') && lower.includes('python')) {
-    return 'Para desplegar un proyecto Python en Render: 1) Sube tu código a GitHub. 2) En Render dashboard, haz clic en New Web Service y conecta tu repo. 3) En Build Command coloca "pip install -r requirements.txt". 4) En Start Command coloca "gunicorn app:app" o "python main.py". 5) Selecciona el plan gratuito y haz clic en Create Web Service.';
+    return 'Para desplegar un proyecto Python en Render, conectas tu repositorio de GitHub, usas "pip install -r requirements.txt" como Build Command y "gunicorn app:app" como Start Command. ¿Qué framework estás utilizando en tu aplicación?';
   }
 
   if (lower.includes('ponme musica') || lower.includes('quiero escuchar musica') || lower.includes('pon musica') || lower.includes('escuchar musica') || lower.includes('reproducir musica')) {
