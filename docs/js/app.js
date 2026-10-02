@@ -157,22 +157,30 @@ window.openRuleEditorModal = function(rule, onSaveCallback) {
   const dateInput = document.getElementById('edit-rule-date');
   const msgInput = document.getElementById('edit-rule-msg');
   const activeCB = document.getElementById('edit-rule-active');
+  const modalTitle = document.getElementById('rule-modal-title');
 
-  nameInput.value = rule.name || rule.title || '';
-  typeSelect.value = rule.type || 'recordatorio';
-  timeInput.value = rule.time || '08:00';
-  dateInput.value = rule.date || new Date().toISOString().split('T')[0];
-  msgInput.value = rule.message || rule.name || '';
-  activeCB.checked = rule.active !== false;
+  const isNew = !rule || !rule.id;
+  const currentRule = rule || {};
 
-  const mode = rule.scheduleMode || (rule.date ? 'date' : 'days');
+  if (modalTitle) {
+    modalTitle.textContent = isNew ? 'Crear Nuevo Registro' : 'Editar Registro';
+  }
+
+  nameInput.value = currentRule.name || currentRule.title || '';
+  typeSelect.value = currentRule.type || 'recordatorio';
+  timeInput.value = currentRule.time || '08:00';
+  dateInput.value = currentRule.date || new Date().toISOString().split('T')[0];
+  msgInput.value = currentRule.message || currentRule.name || '';
+  activeCB.checked = currentRule.active !== false;
+
+  const mode = currentRule.scheduleMode || (currentRule.date ? 'date' : 'days');
   if (mode === 'date') {
     document.getElementById('btn-mode-date').click();
   } else {
     document.getElementById('btn-mode-days').click();
   }
 
-  const activeDays = Array.isArray(rule.days) ? rule.days : [0, 1, 2, 3, 4, 5, 6];
+  const activeDays = Array.isArray(currentRule.days) ? currentRule.days : [0, 1, 2, 3, 4, 5, 6];
   modal.querySelectorAll('.edit-day-chip').forEach(chip => {
     const d = parseInt(chip.getAttribute('data-day'));
     chip.classList.toggle('active', activeDays.includes(d));
@@ -193,7 +201,9 @@ window.openRuleEditorModal = function(rule, onSaveCallback) {
     });
 
     const updatedRule = {
-      ...rule,
+      ...currentRule,
+      id: currentRule.id || 'alg_' + Date.now(),
+      category: 'algorithm',
       name: newName,
       title: newName,
       type: typeSelect.value,
@@ -202,34 +212,60 @@ window.openRuleEditorModal = function(rule, onSaveCallback) {
       days: selectedDays,
       date: !isDaysMode ? dateInput.value : null,
       message: msgInput.value.trim() || newName,
-      active: activeCB.checked
+      active: activeCB.checked,
+      createdAt: currentRule.createdAt || new Date().toISOString()
     };
 
     const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
     let allRules = raw ? JSON.parse(raw) : [];
-    const idx = allRules.findIndex(r => r.id === rule.id);
-    if (idx !== -1) {
-      allRules[idx] = updatedRule;
-      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(allRules));
-    }
 
-    try {
-      if (rule.db_id) {
-        await supabase.from('alarms_reminders').update({
-          name: updatedRule.name,
+    if (isNew) {
+      try {
+        const { data, error } = await supabase.from('alarms_reminders').insert([{
           type: updatedRule.type,
-          time: updatedRule.time,
+          name: updatedRule.name,
+          message: updatedRule.message,
           schedule_mode: updatedRule.scheduleMode,
           days: updatedRule.days,
           specific_date: updatedRule.date,
-          message: updatedRule.message,
+          time: updatedRule.time,
           active: updatedRule.active
-        }).eq('id', rule.db_id);
+        }]).select();
+
+        if (!error && data && data[0]) {
+          updatedRule.db_id = data[0].id;
+        }
+      } catch (e) {}
+
+      allRules.push(updatedRule);
+      localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(allRules));
+      showToast(`${updatedRule.type === 'alarma' ? 'Alarma' : 'Recordatorio'} creado exitosamente`);
+    } else {
+      const idx = allRules.findIndex(r => r.id === currentRule.id);
+      if (idx !== -1) {
+        allRules[idx] = updatedRule;
+        localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(allRules));
       }
-    } catch (e) {}
+
+      try {
+        if (currentRule.db_id) {
+          await supabase.from('alarms_reminders').update({
+            name: updatedRule.name,
+            type: updatedRule.type,
+            time: updatedRule.time,
+            schedule_mode: updatedRule.scheduleMode,
+            days: updatedRule.days,
+            specific_date: updatedRule.date,
+            message: updatedRule.message,
+            active: updatedRule.active
+          }).eq('id', currentRule.db_id);
+        }
+      } catch (e) {}
+
+      showToast(`${updatedRule.type === 'alarma' ? 'Alarma' : 'Recordatorio'} actualizado exitosamente`);
+    }
 
     modal.classList.remove('open');
-    showToast('Regla actualizada exitosamente');
 
     if (typeof onSaveCallback === 'function') {
       onSaveCallback(updatedRule);

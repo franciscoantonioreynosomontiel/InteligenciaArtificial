@@ -114,14 +114,14 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
       },
       {
         name: "crear_recordatorio",
-        description: "Crea un recordatorio agendado con fecha y/o hora (HH:MM) para recordar un evento o tarea en un momento especifico (ej: 'en 3 minutos', 'a las 5:00 PM'). Para expresiones de tiempo relativo ('en 3 minutos'), calcula la hora exacta sumando los minutos a la hora actual local.",
+        description: "Crea y guarda un recordatorio agendado. OBLIGATORIO usar cuando el usuario diga 'recuerda', 'recuérdame', 'recordar' o 'recordatorio'. Si el usuario no menciona la hora, genera la hora actual o dentro de 1 hora (HH:MM) y la fecha de hoy (YYYY-MM-DD) para guardarlo inmediatamente sin fallar. Si se adjunta una foto/imagen, ANALIZA LA IMAGEN visualmente para extraer el producto o asunto exacto (ej: 'comprar Nescafé', 'comprar leche') en vez de poner 'esto' o 'cosa'.",
         parameters: {
           type: "OBJECT",
           properties: {
-            nombre: { type: "STRING", description: "Asunto o titulo del recordatorio" },
-            hora: { type: "STRING", description: "Hora exacta de ejecucion en formato 24h (HH:MM)" },
+            nombre: { type: "STRING", description: "Asunto o titulo especifico del recordatorio analizando la imagen si existe" },
+            hora: { type: "STRING", description: "Hora de ejecucion en formato 24h (HH:MM). Si no se indico, usa la hora actual o proxima" },
             fecha: { type: "STRING", description: "Fecha de ejecucion (YYYY-MM-DD)" },
-            mensaje: { type: "STRING", description: "Texto detallado que dira la IA" }
+            mensaje: { type: "STRING", description: "Texto de aviso que dira la IA" }
           },
           required: ["nombre", "hora"]
         }
@@ -403,15 +403,18 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
 6. CÁLCULO DE TIEMPO RELATIVO Y ALARMAS/RECORDATORIOS:
    - Para expresiones como "en 3 minutos" o "en 10 minutos", SUMA exactamente esa cantidad de minutos a la hora actual indicada en el contexto temporal y genera el recordatorio/alarma con la hora calculada (HH:MM) y la fecha de hoy (YYYY-MM-DD).
    - Para MODIFICAR O EDITAR una alarma o recordatorio existente (ej: "cambia la hora del recordatorio X a las 8:00"), usa 'editar_recordatorio' o 'editar_alarma'.
-7. DISTINCION CRITICA Y GESTION DE NOTAS Y LISTAS:
-   - NOTAS Y LISTAS DE COMPRAS/TAREAS: Si el usuario menciona "nota", "post-it", "anota", "haz una lista...", o si pide guardar o modificar elementos sin hora especifica:
+7. DISTINCION CRITICA Y RUTEO DE HERRAMIENTAS POR PALABRAS CLAVE:
+   - RECORDATORIOS: Si la peticion contiene palabras como "recuerda", "recuérdame", "recordar", "recordatorio" -> DEBES INVOCAR 'crear_recordatorio' O 'editar_recordatorio'.
+     - NUNCA lo guardes como nota si el usuario pidio 'recuérdame' o 'recordar'.
+     - ANALISIS DE IMAGEN EN RECORDATORIOS: Si el usuario envía una imagen y dice "recuérdame comprar esto", EXAMINA ATENTAMENTE LA IMAGEN, identifica el producto u objeto específico (ej. "Nescafé", "Jabón", "Galletas") y asigna ese nombre exacto al recordatorio (ej: "Comprar Nescafé"). NUNCA uses "esto" o "cosa" como nombre del recordatorio.
+     - FECHA Y HORA EN RECORDATORIOS: Si el usuario NO da una hora o fecha especifica, USA LA HORA ACTUAL O DENTRO DE UNOS MINUTOS/HORAS (ej: la hora actual recibida en el contexto) Y GUARDA EL RECORDATORIO DE UNA VEZ, e infórmale al usuario que quedó guardado con la opción de cambiar la fecha u hora si lo desea.
+   - NOTAS Y LISTAS DE COMPRAS/TAREAS: Invoca herramientas de notas SOLO cuando la peticion mencione "nota", "post-it", "anota", "lista de compras", "lista...":
      - Para crear una NOTA NUEVA: usa 'crear_nota'. Si el usuario no indico el nombre/titulo, preguntale directamente: "¿Con qué nombre te gustaría guardar tu nota?".
      - Para MODIFICAR O AGREGAR elementos a una nota existente (ej: "agrega salsa a la lista de compras", "pon dentro esto", "cambia el color a rosado"): usa OBLIGATORIAMENTE 'editar_nota'. NUNCA dupliques ni crees otra nota si ya existe una nota previa relevante.
      - Para MARCAR ELEMENTOS COMPRADOS/COMPLETADOS (ej: "ya compré salsa", "marca perfume", "tacha azúcar"): usa OBLIGATORIAMENTE 'marcar_item_nota' con completado=true.
      - Para RESPONDER QUE FALTA POR COMPRAR O COMPLETAR: Revisa el contenido de las notas en el contexto recibido o invoca 'consultar_notas', y responde mencionando UNICAMENTE los elementos que aun NO estan marcados como completados ([ ]).
      - Para ELIMINAR una nota: usa 'eliminar_nota'.
-   - RECORDATORIOS: Invoca 'crear_recordatorio' SOLO cuando te pidan explícitamente recordar algo a una hora/fecha determinada ("recuérdame a las 5", "crea un recordatorio para mañana", "recuérdame en 3 minutos").
-   - ALARMAS: Invoca 'crear_alarma' SOLO cuando pidan una alarma sonora o despertar a una hora determinada ("pon una alarma a las 7 am").`
+   - ALARMAS: Si la peticion menciona "alarma", "despiértame", "sonar", "despertar" -> DEBES INVOCAR 'crear_alarma' O 'editar_alarma'.`
         }
       ]
     };

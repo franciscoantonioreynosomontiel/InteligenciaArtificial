@@ -931,7 +931,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
   }
 
   // Programar Recordatorio
-  if (lower.includes('recuerdame') || lower.includes('recuérdame') || lower.includes('recordatorio') || lower.includes('recordar')) {
+  if (lower.includes('recuerda') || lower.includes('recuerdame') || lower.includes('recuérdame') || lower.includes('recordatorio') || lower.includes('recordar')) {
     let formattedTime = null;
     let reminderDate = dateStr;
 
@@ -971,12 +971,17 @@ async function executeDynamicClientAnswer(prompt, attachment) {
       }
     }
 
+    // Default to current/next hour time if no time specified
     if (!formattedTime) {
-      return 'Indícame la hora y fecha en la que necesitas que te envíe el recordatorio.';
+      const currentHour = String(now.getHours()).padStart(2, '0');
+      const currentMin = String(now.getMinutes()).padStart(2, '0');
+      formattedTime = `${currentHour}:${currentMin}`;
     }
 
-    let topic = prompt.replace(/recuerdame|recuérdame|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?|en \d+ minutos?|en \d+ horas?/gi, '').trim();
-    if (!topic || topic.length < 2) topic = 'Recordatorio pendiente';
+    let topic = prompt.replace(/recuerdame|recuérdame|recuerda|crea un recordatorio|recordatorio|para mañana|para el|a las \d{1,2}(:\d{2})?(\s*(am|pm))?|en \d+ minutos?|en \d+ horas?/gi, '').trim();
+    if (!topic || topic.length < 2 || topic.toLowerCase() === 'esto' || topic.toLowerCase() === 'cosa') {
+      topic = 'Recordatorio pendiente';
+    }
 
     const isRecurring = lower.includes('todos los dias') || lower.includes('todos los días') || lower.includes('diario') || lower.includes('siempre');
 
@@ -989,7 +994,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     };
 
     const result = executeAlarmTool('crear_recordatorio', reminderData);
-    return `${result} Guardado para las ${formattedTime}. Puedes verlo en aprender.html o recordatorios.html.`;
+    return `${result} Guardado para las ${formattedTime}. Puedes verlo en recordatorios.html. Si deseas ajustar la hora o fecha puedes decírmelo.`;
   }
 
   // Pastel de 3 leches
