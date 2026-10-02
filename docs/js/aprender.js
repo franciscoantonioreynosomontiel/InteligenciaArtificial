@@ -199,12 +199,13 @@ function setupTabs() {
 }
 
 function setupVoiceUI() {
+  const nameInput = document.getElementById('assistant-name-input');
   const enableCB = document.getElementById('voice-enable-elevenlabs');
   const voiceSelect = document.getElementById('voice-select');
   const btnTestVoice = document.getElementById('btn-test-voice');
   const btnSaveVoice = document.getElementById('btn-save-voice');
 
-  let settings = { enabled: true, voice_id: '', voice_id_es: '', voice_name: '' };
+  let settings = { enabled: true, voice_id: '', voice_id_es: '', voice_name: '', assistant_name: 'Gemini' };
   try {
     const raw = localStorage.getItem('ia_agent_voice_settings');
     if (raw) {
@@ -213,6 +214,7 @@ function setupVoiceUI() {
     }
   } catch (e) {}
 
+  if (nameInput) nameInput.value = settings.assistant_name || 'Gemini';
   if (enableCB) enableCB.checked = settings.enabled !== false;
 
   const currentVoiceId = settings.voice_id_es || settings.voice_id || '';
@@ -360,9 +362,11 @@ async function testElevenLabsVoice() {
 }
 
 function saveVoiceSettings() {
+  const nameInput = document.getElementById('assistant-name-input');
   const enableCB = document.getElementById('voice-enable-elevenlabs');
   const voiceSelect = document.getElementById('voice-select');
 
+  const assistant_name = nameInput ? (nameInput.value.trim() || 'Gemini') : 'Gemini';
   const voice_id = voiceSelect ? voiceSelect.value : '';
   const enabled = enableCB ? enableCB.checked : Boolean(voice_id);
 
@@ -374,6 +378,7 @@ function saveVoiceSettings() {
     voice_id,
     voice_id_es: voice_id,
     voice_name,
+    assistant_name,
     updatedAt: new Date().toISOString()
   };
 
