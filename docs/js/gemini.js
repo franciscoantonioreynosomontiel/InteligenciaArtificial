@@ -717,6 +717,23 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
     if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
   }
 
+  const lowerUser = (userPrompt || '').toLowerCase();
+  const isMusicIntent =
+    lowerUser.includes('ponme musica') ||
+    lowerUser.includes('quiero escuchar musica') ||
+    lowerUser.includes('pon musica') ||
+    lowerUser.includes('escuchar musica') ||
+    lowerUser.includes('reproducir musica') ||
+    lowerUser.includes('reproduce musica') ||
+    lowerUser.includes('pon una cancion') ||
+    lowerUser.includes('ponme una cancion');
+
+  if (isMusicIntent && !window.location.pathname.endsWith('musica.html')) {
+    setTimeout(() => {
+      window.location.href = './musica.html';
+    }, 1200);
+  }
+
   let aiReplyText = '';
 
   // 1. Peticion a Supabase Edge Function

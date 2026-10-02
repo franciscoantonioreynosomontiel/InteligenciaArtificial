@@ -31,6 +31,42 @@ interface RequestBody {
   volume?: number;
 }
 
+function extractTrackInfo(r: any) {
+  let rawName =
+    r.context?.custom?.title ||
+    r.context?.custom?.caption ||
+    r.context?.custom?.name ||
+    r.display_name ||
+    r.filename ||
+    r.original_filename ||
+    '';
+
+  if (!rawName || rawName.trim().length === 0) {
+    rawName = (r.public_id || '').split('/').pop() || 'Canción Cloudinary';
+  }
+
+  rawName = rawName.replace(/\.[^/.]+$/, '');
+
+  let artist = r.context?.custom?.artist || 'Cloudinary';
+  let title = rawName;
+
+  if (artist === 'Cloudinary' && (rawName.includes('-') || rawName.includes(' - '))) {
+    const parts = rawName.split('-');
+    if (parts.length >= 2) {
+      artist = parts[0].trim();
+      title = parts.slice(1).join('-').trim();
+    }
+  }
+
+  title = title.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  artist = artist.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  title = title ? title.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción Cloudinary';
+  artist = artist ? artist.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Cloudinary';
+
+  return { title, artist };
+}
+
 function sanitizeAIResponse(text: string): string {
   if (!text) return '';
   let clean = text;
@@ -102,7 +138,7 @@ serve(async (req: Request) => {
       if (cloudinarySecret) {
         try {
           const authString = btoa(`${cloudinaryApiKey}:${cloudinarySecret}`);
-          const cldUrl = `https://api.cloudinary.com/v1_1/dp776nphp/resources/video?max_results=100`;
+          const cldUrl = `https://api.cloudinary.com/v1_1/dp776nphp/resources/video?max_results=100&context=true&tags=true`;
           const cldRes = await fetch(cldUrl, {
             headers: {
               'Authorization': `Basic ${authString}`
@@ -113,12 +149,11 @@ serve(async (req: Request) => {
             const cldData = await cldRes.json();
             if (cldData && Array.isArray(cldData.resources)) {
               cldData.resources.forEach((r: any) => {
-                const rawName = (r.public_id || '').split('/').pop() || 'Canción Cloudinary';
-                const cleanTitle = rawName.replace(/[-_]/g, ' ').trim();
+                const { title, artist } = extractTrackInfo(r);
                 tracks.push({
                   id: r.public_id || ('cld-' + Math.random()),
-                  title: cleanTitle || 'Canción Cloudinary',
-                  artist: 'Cloudinary',
+                  title: title,
+                  artist: artist,
                   album: 'Mi Música Cloudinary',
                   url: r.secure_url || r.url,
                   cover: './assets/img/logopwa.png',
