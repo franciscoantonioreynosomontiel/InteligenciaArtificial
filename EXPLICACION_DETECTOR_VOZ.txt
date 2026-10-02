@@ -1,0 +1,32 @@
+====================================================================
+RESUMEN DE CAMBIOS REALIZADOS: PALABRA DE ACTIVACIÓN POR VOZ (detectorVoz)
+====================================================================
+
+Hola. He implementado la función solicitada de palabra de activación por voz sin alterar ni eliminar ninguna funcionalidad existente de tu proyecto.
+
+A continuación detallo exactamente qué archivos se modificaron y cómo funciona:
+
+1. CONFIGURACIÓN DEL NOMBRE EN aprender.html (docs/aprender.html):
+   - En la pestaña "Voces" (Tab 5 de Conocimiento), agregué un campo de texto simple:
+     etiqueta: "Nombre del asistente" (id: assistant-name-input).
+   - Por defecto tiene el valor "Gemini". Puedes cambiarlo por "Luna", "Amigo", etc.
+
+2. GUARDADO DE LA CONFIGURACIÓN (docs/js/aprender.js):
+   - En la función `setupVoiceUI()`, se carga el valor guardado en localStorage bajo la clave 'ia_agent_voice_settings' (campo `assistant_name`).
+   - En la función `saveVoiceSettings()`, al presionar "Guardar Configuracion", se guarda el nombre ingresado junto a las demás configuraciones de voz.
+
+3. NUEVA FUNCIÓN detectorVoz (docs/js/app.js):
+   - Creé la función `detectorVoz()` que se inicia automáticamente al cargar la PWA (`DOMContentLoaded`).
+   - Escucha en segundo plano utilizando Web Speech API en español.
+   - Lee el nombre configurado (por ejemplo, "Gemini" o "Luna") y reconoce variantes naturales como:
+     * "[nombre]" (ej. "Luna")
+     * "oye [nombre]" (ej. "Oye Gemini", "Oye Luna")
+     * "hola [nombre]"
+     * "ok [nombre]"
+   - En cuanto detecta la frase, desactiva temporalmente el detector de segundo plano y presiona automáticamente tu micrófono existente (`#btn-mic`), activando tu flujo de voz y conversación habitual con Gemini.
+   - Cuando terminas de hablar o cuando la voz hablada (ElevenLabs) termina de responder, la función reanuda automáticamente la escucha en segundo plano.
+
+4. LO QUE NO SE TOCÓ:
+   - No se modificaron Edge Functions, ni Gemini, ni el diseño general, ni el micrófono existente, ni los post-its, notas, alarmas, traductor, ni ninguna otra función de la PWA.
+
+====================================================================
