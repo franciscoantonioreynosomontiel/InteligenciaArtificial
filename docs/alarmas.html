@@ -12,6 +12,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/styles.css">
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
 </head>
 <body class="page-learn">
 
@@ -28,11 +36,14 @@
       </div>
     </div>
 
-    <!-- Search / Filter Bar -->
-    <div class="filter-bar">
-      <div class="search-wrapper">
+    <!-- Search / Filter Bar & Add Button -->
+    <div class="filter-bar" style="display: flex; gap: 12px; align-items: center;">
+      <div class="search-wrapper" style="flex: 1;">
         <input type="text" id="search-alarms" class="form-input search-input" placeholder="Buscar alarma por nombre o mensaje...">
       </div>
+      <button id="btn-create-alarm" class="btn-primary-action" style="width: auto; padding: 10px 18px; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+        <span style="font-size: 1.2rem; font-weight: bold;">+</span> Nueva Alarma
+      </button>
     </div>
 
     <!-- Dynamic Alarms List Container -->

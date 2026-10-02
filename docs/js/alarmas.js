@@ -21,6 +21,17 @@ document.addEventListener('DOMContentLoaded', () => {
       renderAlarmsList();
     });
   }
+
+  const btnCreate = document.getElementById('btn-create-alarm');
+  if (btnCreate) {
+    btnCreate.addEventListener('click', () => {
+      if (window.openRuleEditorModal) {
+        window.openRuleEditorModal({ type: 'alarma' }, () => {
+          renderAlarmsList();
+        });
+      }
+    });
+  }
 });
 
 function getLocalAlarms() {

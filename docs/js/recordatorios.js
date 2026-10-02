@@ -21,6 +21,17 @@ document.addEventListener('DOMContentLoaded', () => {
       renderRemindersList();
     });
   }
+
+  const btnCreate = document.getElementById('btn-create-reminder');
+  if (btnCreate) {
+    btnCreate.addEventListener('click', () => {
+      if (window.openRuleEditorModal) {
+        window.openRuleEditorModal({ type: 'recordatorio' }, () => {
+          renderRemindersList();
+        });
+      }
+    });
+  }
 });
 
 function getLocalReminders() {
