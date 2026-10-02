@@ -26,6 +26,10 @@ let currentTriggeredAlarm = null;
 let thoughtBubbleTimer = null;
 let thoughtLoadingTimer = null;
 
+let wakeWordRecognition = null;
+let isWakeWordListening = false;
+let isWakeWordPaused = false;
+
 function stopSpeech() {
   if (synth) synth.cancel();
   if (currentElevenAudio) {
@@ -34,6 +38,7 @@ function stopSpeech() {
     currentElevenAudio = null;
   }
   if (scene3D) scene3D.setSpeakingState(false);
+  resumeWakeWordDetection();
 }
 
 // Register Service Worker for PWA
@@ -419,6 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreChatSession();
   requestPermissionsAndTrackLocation();
   initAlarmExecutionEngine();
+  detectorVoz();
 
   if (document.getElementById('bot-model-viewer')) {
     showThoughtBubble('¡Hola! ¿En qué te puedo ayudar hoy?', 3000);
@@ -563,6 +569,103 @@ function setup3DViewer() {
   }
 }
 
+function detectorVoz() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  if (wakeWordRecognition) return;
+
+  wakeWordRecognition = new SpeechRecognition();
+  wakeWordRecognition.lang = 'es-ES';
+  wakeWordRecognition.continuous = true;
+  wakeWordRecognition.interimResults = true;
+
+  wakeWordRecognition.onstart = () => {
+    isWakeWordListening = true;
+  };
+
+  wakeWordRecognition.onresult = (event) => {
+    if (isWakeWordPaused || isMainRecording || isChatRecording) return;
+
+    let assistantName = 'Gemini';
+    try {
+      const raw = localStorage.getItem('ia_agent_voice_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.assistant_name && parsed.assistant_name.trim()) {
+          assistantName = parsed.assistant_name.trim();
+        }
+      }
+    } catch (e) {}
+
+    const cleanAssistantName = assistantName.toLowerCase();
+    const triggerPhrases = [
+      cleanAssistantName,
+      `oye ${cleanAssistantName}`,
+      `hola ${cleanAssistantName}`,
+      `ok ${cleanAssistantName}`
+    ];
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = (event.results[i][0].transcript || '').toLowerCase().trim();
+      const detected = triggerPhrases.some((phrase) => transcript.includes(phrase));
+
+      if (detected) {
+        pauseWakeWordDetection();
+        const micBtn = document.getElementById('btn-mic');
+        if (micBtn) micBtn.click();
+        break;
+      }
+    }
+  };
+
+  wakeWordRecognition.onerror = (err) => {
+    if (err.error === 'not-allowed' || err.error === 'service-not-allowed') {
+      isWakeWordListening = false;
+      return;
+    }
+    restartWakeWordListening();
+  };
+
+  wakeWordRecognition.onend = () => {
+    isWakeWordListening = false;
+    restartWakeWordListening();
+  };
+
+  startWakeWordListening();
+}
+
+function startWakeWordListening() {
+  if (!wakeWordRecognition || isWakeWordListening || isWakeWordPaused) return;
+  try {
+    wakeWordRecognition.start();
+  } catch (e) {}
+}
+
+function pauseWakeWordDetection() {
+  isWakeWordPaused = true;
+  if (wakeWordRecognition && isWakeWordListening) {
+    try {
+      wakeWordRecognition.stop();
+    } catch (e) {}
+  }
+}
+
+function resumeWakeWordDetection() {
+  isWakeWordPaused = false;
+  if (!isMainRecording && !isChatRecording && !currentElevenAudio) {
+    startWakeWordListening();
+  }
+}
+
+function restartWakeWordListening() {
+  if (!isWakeWordPaused && !isMainRecording && !isChatRecording && !currentElevenAudio) {
+    setTimeout(() => {
+      startWakeWordListening();
+    }, 1000);
+  }
+}
+
 function setupSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) return;
@@ -573,6 +676,7 @@ function setupSpeechRecognition() {
   recognition.continuous = false;
 
   recognition.onstart = () => {
+    pauseWakeWordDetection();
     if (activeRecordingSource === 'main') {
       isMainRecording = true;
       const micBtn = document.getElementById('btn-mic');
@@ -606,6 +710,10 @@ function stopRecording() {
 
   const chatMicBtn = document.getElementById('btn-chat-mic');
   if (chatMicBtn) chatMicBtn.classList.remove('recording');
+
+  if (!currentElevenAudio) {
+    resumeWakeWordDetection();
+  }
 }
 
 function setupEventListeners() {
@@ -1200,10 +1308,14 @@ async function speakResponse(text, isVoiceBubble = false) {
         currentElevenAudio.onended = () => {
           if (scene3D) scene3D.setSpeakingState(false);
           if (isVoiceBubble) setTimeout(() => hideThoughtBubble(), 2000);
+          currentElevenAudio = null;
+          resumeWakeWordDetection();
         };
 
         currentElevenAudio.onerror = () => {
           if (scene3D) scene3D.setSpeakingState(false);
+          currentElevenAudio = null;
+          resumeWakeWordDetection();
         };
 
         currentElevenAudio.play().catch(() => {
