@@ -1,0 +1,32 @@
+====================================================================
+EXPLICACIÓN DE NOMBRES Y TÍTULOS DE CANCIONES EN CLOUDINARY
+====================================================================
+
+Hola. A continuación te explico cómo el sistema obtiene los nombres de tus canciones subidas a Cloudinary y cómo se solucionó la aparición de letras o hashes (como 'jdkddfkfakfa'):
+
+--------------------------------------------------------------------
+1. ¿POR QUÉ APARECÍAN LETRAS ALEATORIAS O HASHES EN LUGAR DEL NOMBRE?
+--------------------------------------------------------------------
+- Al subir archivos a Cloudinary sin especificar un 'public_id' personalizado, Cloudinary genera automáticamente un identificador alfanumérico único para cada archivo (ejemplo: 'jdkddfkfakfa' o 'p77nsjwwltyve2oryjv3').
+- La función de lectura anteriormente tomaba directamente ese 'public_id' de Cloudinary en lugar de consultar las propiedades de nombre original o metadatos del archivo.
+
+--------------------------------------------------------------------
+2. MEJORAS E INTEGRACIÓN REALIZADAS EN LA APLICACIÓN:
+--------------------------------------------------------------------
+1. EXTRACCIÓN INTELIGENTE DESDE CLOUDINARY:
+   - Ahora la Edge Function de Supabase (`supabase/functions/musica/index.ts`) consulta la API de Cloudinary solicitando metadatos ampliados (`context=true&tags=true`).
+   - El sistema analiza progresivamente:
+     a) Metadatos personalizados o contexto (`title`, `caption`, `artist`).
+     b) Nombre para mostrar en Cloudinary (`display_name`).
+     c) Nombre original del archivo antes de subirse (`filename` u `original_filename`).
+   - Si el archivo se llama por ejemplo "zona ganjah - camino" o "zona ganjah camino", el reproductor extrae automáticamente:
+     * Cantante/Artista: Zona Ganjah
+     * Canción/Título: Camino
+
+2. ACTUALIZACIÓN AUTOMÁTICA EN EL NAVEGADOR:
+   - Al abrir `musica.html`, la aplicación sincroniza la biblioteca local con Cloudinary y reemplaza automáticamente cualquier título antiguo que contuviera letras o hashes por el nombre limpio formateado.
+
+3. EDICIÓN MANUAL Y CONTROL TOTAL EN LA APP:
+   - En la lista de canciones de `musica.html`, cada tema cuenta con un botón de edición (ícono de lápiz ✏️). Puedes presionar el lápiz en cualquier momento para cambiar el nombre de la canción, el nombre del cantante o el álbum según tu preferencia.
+
+--------------------------------------------------------------------

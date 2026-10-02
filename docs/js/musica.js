@@ -96,19 +96,33 @@ async function fetchCloudinaryTracksFromEdge() {
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
-        // Merge fetched Cloudinary tracks with existing local tracks
-        const existingUrls = new Set(MUSIC_LIBRARY.map(t => t.url));
-        let addedCount = 0;
-        data.tracks.forEach(track => {
-          if (!existingUrls.has(track.url)) {
-            MUSIC_LIBRARY.push(track);
-            existingUrls.add(track.url);
-            addedCount++;
+        let updatedCount = 0;
+        data.tracks.forEach(remoteTrack => {
+          const existingIdx = MUSIC_LIBRARY.findIndex(t => t.url === remoteTrack.url || t.id === remoteTrack.id);
+          if (existingIdx === -1) {
+            MUSIC_LIBRARY.push(remoteTrack);
+            updatedCount++;
+          } else {
+            const currTitle = MUSIC_LIBRARY[existingIdx].title;
+            const isHashOrGeneric = currTitle.startsWith('Canción Cloudinary') || /^[a-zA-Z0-9]{8,32}$/.test(currTitle);
+            if (isHashOrGeneric || (remoteTrack.title && !remoteTrack.title.startsWith('Canción Cloudinary') && !/^[a-zA-Z0-9]{8,32}$/.test(remoteTrack.title))) {
+              if (MUSIC_LIBRARY[existingIdx].title !== remoteTrack.title || MUSIC_LIBRARY[existingIdx].artist !== remoteTrack.artist) {
+                MUSIC_LIBRARY[existingIdx].title = remoteTrack.title;
+                MUSIC_LIBRARY[existingIdx].artist = remoteTrack.artist;
+                updatedCount++;
+              }
+            }
           }
         });
-        if (addedCount > 0 || MUSIC_LIBRARY.length > 0) {
+        if (updatedCount > 0 || MUSIC_LIBRARY.length > 0) {
           saveStoredMusicLibrary(MUSIC_LIBRARY);
           renderLibraryList();
+          if (MUSIC_LIBRARY[currentTrackIndex]) {
+            const titleElem = document.getElementById('track-title');
+            const artistElem = document.getElementById('track-artist');
+            if (titleElem) titleElem.innerText = MUSIC_LIBRARY[currentTrackIndex].title;
+            if (artistElem) artistElem.innerText = `${MUSIC_LIBRARY[currentTrackIndex].artist} • ${MUSIC_LIBRARY[currentTrackIndex].album}`;
+          }
         }
       }
     }

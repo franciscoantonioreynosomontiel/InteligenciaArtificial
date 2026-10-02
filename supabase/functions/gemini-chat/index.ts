@@ -414,7 +414,8 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
      - Para MARCAR ELEMENTOS COMPRADOS/COMPLETADOS (ej: "ya compré salsa", "marca perfume", "tacha azúcar"): usa OBLIGATORIAMENTE 'marcar_item_nota' con completado=true.
      - Para RESPONDER QUE FALTA POR COMPRAR O COMPLETAR: Revisa el contenido de las notas en el contexto recibido o invoca 'consultar_notas', y responde mencionando UNICAMENTE los elementos que aun NO estan marcados como completados ([ ]).
      - Para ELIMINAR una nota: usa 'eliminar_nota'.
-   - ALARMAS: Si la peticion menciona "alarma", "despiértame", "sonar", "despertar" -> DEBES INVOCAR 'crear_alarma' O 'editar_alarma'.`
+   - ALARMAS: Si la peticion menciona "alarma", "despiértame", "sonar", "despertar" -> DEBES INVOCAR 'crear_alarma' O 'editar_alarma'.
+   - MUSICA Y REPRODUCTOR: Si el usuario te pide "ponme musica", "quiero escuchar musica", "pon musica", "reproduce musica", "ponme una cancion" o pide escuchar canciones o un artista -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'reproducir_musica'.`
         }
       ]
     };

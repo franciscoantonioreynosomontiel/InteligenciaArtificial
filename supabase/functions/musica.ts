@@ -30,6 +30,42 @@ interface RequestBody {
   volume?: number;
 }
 
+function extractTrackInfo(r: any) {
+  let rawName =
+    r.context?.custom?.title ||
+    r.context?.custom?.caption ||
+    r.context?.custom?.name ||
+    r.display_name ||
+    r.filename ||
+    r.original_filename ||
+    '';
+
+  if (!rawName || rawName.trim().length === 0) {
+    rawName = (r.public_id || '').split('/').pop() || 'Canción Cloudinary';
+  }
+
+  rawName = rawName.replace(/\.[^/.]+$/, '');
+
+  let artist = r.context?.custom?.artist || 'Cloudinary';
+  let title = rawName;
+
+  if (artist === 'Cloudinary' && (rawName.includes('-') || rawName.includes(' - '))) {
+    const parts = rawName.split('-');
+    if (parts.length >= 2) {
+      artist = parts[0].trim();
+      title = parts.slice(1).join('-').trim();
+    }
+  }
+
+  title = title.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  artist = artist.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  title = title ? title.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción Cloudinary';
+  artist = artist ? artist.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Cloudinary';
+
+  return { title, artist };
+}
+
 function sanitizeAIResponse(text: string): string {
   if (!text) return '';
   let clean = text;
