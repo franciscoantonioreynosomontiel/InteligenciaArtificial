@@ -16,6 +16,17 @@ const DEFAULT_MUSIC_LIBRARY = [
   }
 ];
 
+function deduplicateTracks(tracks) {
+  if (!Array.isArray(tracks)) return [];
+  const seen = new Set();
+  return tracks.filter(t => {
+    const key = t.url || t.id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getStoredMusicLibrary() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MUSIC);
@@ -32,7 +43,8 @@ function getStoredMusicLibrary() {
           if (t.title.includes('SoundHelix')) t.title = 'Canción Cloudinary 1';
           return t;
         });
-      return cldTracks.length > 0 ? cldTracks : DEFAULT_MUSIC_LIBRARY;
+      const unique = deduplicateTracks(cldTracks);
+      return unique.length > 0 ? unique : DEFAULT_MUSIC_LIBRARY;
     }
     return DEFAULT_MUSIC_LIBRARY;
   } catch (e) {
@@ -147,6 +159,7 @@ async function fetchCloudinaryTracksFromEdge() {
             }
           }
         });
+        MUSIC_LIBRARY = deduplicateTracks(MUSIC_LIBRARY);
         if (updatedCount > 0 || MUSIC_LIBRARY.length > 0) {
           saveStoredMusicLibrary(MUSIC_LIBRARY);
           renderLibraryList();
@@ -754,13 +767,21 @@ function openCreateAlbumModal() {
   const albumInput = document.getElementById('new-album-name');
   if (albumInput) albumInput.value = '';
 
+  MUSIC_LIBRARY = deduplicateTracks(MUSIC_LIBRARY);
+  saveStoredMusicLibrary(MUSIC_LIBRARY);
+
   const listContainer = document.getElementById('create-album-songs-list');
   if (listContainer) {
     listContainer.innerHTML = '';
     if (MUSIC_LIBRARY.length === 0) {
       listContainer.innerHTML = '<div style="font-size:0.85rem; color:#64748b;">No hay canciones disponibles.</div>';
     } else {
+      const seenUrls = new Set();
       MUSIC_LIBRARY.forEach((track, idx) => {
+        const key = track.url || track.id || idx;
+        if (seenUrls.has(key)) return;
+        seenUrls.add(key);
+
         const itemLabel = document.createElement('label');
         itemLabel.className = 'song-select-item';
         itemLabel.innerHTML = `

@@ -669,16 +669,21 @@ body {
 .page-learn {
   height: auto;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-y: auto;
-  padding: 32px 20px;
+  overflow-x: hidden;
+  padding: 24px 16px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .learn-container {
   width: 100%;
   max-width: 1100px;
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(24px);
   border-radius: 28px;
@@ -756,6 +761,8 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 28px;
   align-items: start;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 860px) {
@@ -772,6 +779,9 @@ body {
   border: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .card-title {
@@ -791,29 +801,35 @@ body {
 /* Tab Navigation for Upload Types */
 .tab-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 20px;
   background: #f8fafc;
-  padding: 4px;
+  padding: 6px;
   border-radius: 14px;
   border: 1px solid #f1f5f9;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tab-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   background: transparent;
   border: none;
-  padding: 9px 12px;
-  font-size: 0.85rem;
+  padding: 9px 10px;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
   border-radius: 10px;
   transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -1421,14 +1437,15 @@ input:checked + .switch-slider:before {
 /* General Mobile Responsiveness Rules for All Screens and Viewports */
 @media (max-width: 768px) {
   .page-learn {
-    padding: 12px 10px;
+    padding: 12px 8px;
   }
 
   .learn-container {
-    padding: 16px 14px;
+    padding: 16px 12px;
     border-radius: 20px;
     margin-bottom: 20px;
     max-width: 100%;
+    width: 100%;
   }
 
   .learn-header {
@@ -1443,12 +1460,43 @@ input:checked + .switch-slider:before {
     width: 100%;
     justify-content: flex-start;
     gap: 6px;
+    flex-wrap: wrap;
   }
 
   .btn-back {
     padding: 6px 12px;
     font-size: 0.82rem;
     border-radius: 14px;
+    flex: 0 0 auto;
+  }
+
+  .tab-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .tab-btn {
+    padding: 8px 8px;
+    font-size: 0.78rem;
+    flex: 1 1 auto;
+  }
+
+  .section-card.column-card {
+    padding: 16px 12px;
+    border-radius: 18px;
+  }
+
+  .day-chips {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .day-chip {
+    min-width: 32px;
+    padding: 6px 0;
+    font-size: 0.75rem;
   }
 
   .notes-board {
