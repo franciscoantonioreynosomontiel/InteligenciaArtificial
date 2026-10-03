@@ -757,7 +757,10 @@ function openDeleteTrackModal(index) {
   const track = MUSIC_LIBRARY[index];
 
   const textElem = document.getElementById('delete-track-confirm-text');
-  if (textElem) textElem.innerText = `¿Estás seguro de que deseas eliminar "${track.title}"?`;
+  if (textElem) {
+    textElem.style.color = 'var(--music-text-primary)';
+    textElem.innerText = `¿Estás seguro de que deseas eliminar "${track.title}"?`;
+  }
 
   const modal = document.getElementById('modal-delete-track');
   if (modal) modal.classList.add('open');
@@ -871,7 +874,7 @@ function renderLibraryList() {
     const headerRow = document.createElement('div');
     headerRow.className = 'albums-section-header';
     headerRow.innerHTML = `
-      <span style="font-weight:700; color:#4c1d95; font-size:0.95rem;">Tus Álbumes</span>
+      <span style="font-weight:700; color:var(--music-text-accent); font-size:0.95rem;">Tus Álbumes</span>
       <button id="btn-add-album-header" class="btn-add-album">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         <span>Crear Álbum</span>
@@ -892,7 +895,7 @@ function renderLibraryList() {
     const albumKeys = Object.keys(albums);
 
     if (albumKeys.length === 0) {
-      container.innerHTML += `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No se encontraron álbumes.</div>`;
+      container.innerHTML += `<div style="text-align:center; padding: 20px; color: var(--music-text-secondary); font-size: 0.85rem;">No se encontraron álbumes.</div>`;
       return;
     }
 
@@ -931,7 +934,7 @@ function renderLibraryList() {
     const artistKeys = Object.keys(artists);
 
     if (artistKeys.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay cantantes encontrados.</div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--music-text-secondary); font-size: 0.85rem;">No hay cantantes encontrados.</div>`;
       return;
     }
 
@@ -940,30 +943,30 @@ function renderLibraryList() {
       const isExpanded = !!expandedArtists[artistName];
 
       const artistCard = document.createElement('div');
-      artistCard.style.cssText = 'background:#f8fafc; border:1px solid #ede9fe; border-radius:14px; margin-bottom:10px; overflow:hidden;';
+      artistCard.style.cssText = 'background:var(--music-card-bg); border:1px solid var(--music-card-border); border-radius:14px; margin-bottom:10px; overflow:hidden;';
 
       const cardHeader = document.createElement('div');
-      cardHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; background:#ffffff;';
+      cardHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; background:var(--music-card-bg);';
       cardHeader.innerHTML = `
         <div style="display:flex; align-items:center; gap:10px; flex:1;">
-          <div style="width:36px; height:36px; border-radius:50%; background:#ede9fe; color:#6d28d9; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
+          <div style="width:36px; height:36px; border-radius:50%; background:var(--music-input-bg); color:var(--music-text-accent); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
             ${artistName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <div style="font-size:0.95rem; font-weight:700; color:#1e1b4b;">${artistName}</div>
-            <div style="font-size:0.75rem; color:#64748b;">${artistTracks.length} canción${artistTracks.length === 1 ? '' : 'es'}</div>
+            <div style="font-size:0.95rem; font-weight:700; color:var(--music-text-primary);">${artistName}</div>
+            <div style="font-size:0.75rem; color:var(--music-text-secondary);">${artistTracks.length} canción${artistTracks.length === 1 ? '' : 'es'}</div>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
           <button class="btn-play-artist" title="Reproducir cantante" style="padding:6px 12px; border-radius:16px; background:#8b5cf6; color:#ffffff; border:none; font-size:0.8rem; font-weight:600; cursor:pointer;">
             Reproducir
           </button>
-          <span style="font-size:1.1rem; color:#6d28d9; padding:4px;">${isExpanded ? '▲' : '▼'}</span>
+          <span style="font-size:1.1rem; color:var(--music-text-accent); padding:4px;">${isExpanded ? '▲' : '▼'}</span>
         </div>
       `;
 
       const tracksDiv = document.createElement('div');
-      tracksDiv.style.cssText = `display:${isExpanded ? 'flex' : 'none'}; flex-direction:column; gap:6px; padding:10px; background:#faf5ff; border-top:1px solid #f3e8ff;`;
+      tracksDiv.style.cssText = `display:${isExpanded ? 'flex' : 'none'}; flex-direction:column; gap:6px; padding:10px; background:var(--music-controls-bg); border-top:1px solid var(--music-controls-border);`;
 
       if (isExpanded) {
         artistTracks.forEach((track, idx) => {
@@ -990,7 +993,7 @@ function renderLibraryList() {
   } else {
     // Default 'songs' view
     if (filteredTracks.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b; font-size: 0.85rem;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--music-text-secondary); font-size: 0.85rem;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
       return;
     }
 
