@@ -50,11 +50,17 @@ function extractTrackInfo(r: any) {
   let artist = r.context?.custom?.artist || 'Cloudinary';
   let title = rawName;
 
-  if (artist === 'Cloudinary' && (rawName.includes('-') || rawName.includes(' - '))) {
-    const parts = rawName.split('-');
-    if (parts.length >= 2) {
+  if (artist === 'Cloudinary') {
+    if (rawName.includes(' - ')) {
+      const parts = rawName.split(' - ');
       artist = parts[0].trim();
-      title = parts.slice(1).join('-').trim();
+      title = parts.slice(1).join(' - ').trim();
+    } else if (rawName.includes('-')) {
+      const parts = rawName.split('-');
+      if (parts.length >= 2) {
+        artist = parts[0].trim();
+        title = parts.slice(1).join('-').trim();
+      }
     }
   }
 
@@ -285,6 +291,16 @@ serve(async (req: Request) => {
             matchedTrackIndex = matchedArtistTracks[0];
             const t = library[matchedTrackIndex];
             aiMessage = `Reproduciendo canciones del cantante ${t.artist}. Sonando "${t.title}".`;
+            return new Response(
+              JSON.stringify({
+                action: matchedAction,
+                artist_name: t.artist,
+                track_index: matchedTrackIndex,
+                volume: targetVolume,
+                reply: aiMessage
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
         }
       }
