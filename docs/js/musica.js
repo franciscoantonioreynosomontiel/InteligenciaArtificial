@@ -77,6 +77,34 @@ let expandedArtists = {};
 // Edit & Delete Track Modal State
 let editingTrackIndex = -1;
 let deletingTrackIndex = -1;
+let editingArtistName = '';
+
+function parseFilenameToMeta(filename) {
+  let cleanName = filename.replace(/\.[^/.]+$/, '').trim();
+  let artist = 'Cloudinary';
+  let title = cleanName;
+
+  if (cleanName.includes(' - ')) {
+    const parts = cleanName.split(' - ');
+    artist = parts[0].trim();
+    title = parts.slice(1).join(' - ').trim();
+  } else if (cleanName.includes('-')) {
+    const parts = cleanName.split('-');
+    if (parts.length >= 2) {
+      artist = parts[0].trim();
+      title = parts.slice(1).join('-').trim();
+    }
+  }
+
+  // Format capitalized title & artist
+  title = title.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  artist = artist.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  title = title ? title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción Cloudinary';
+  artist = artist ? artist.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Cloudinary';
+
+  return { title, artist };
+}
 
 function playAlbumQueue(albumName) {
   const albumTracks = MUSIC_LIBRARY.filter(t => t.album === albumName);
@@ -503,6 +531,48 @@ function setupUIEventListeners() {
     });
   }
 
+  // Edit Artist Modal Controls
+  const btnCancelEditArtist = document.getElementById('btn-cancel-edit-artist');
+  const btnSaveEditArtist = document.getElementById('btn-save-edit-artist');
+
+  if (btnCancelEditArtist) {
+    btnCancelEditArtist.addEventListener('click', () => {
+      document.getElementById('modal-edit-artist')?.classList.remove('open');
+    });
+  }
+
+  if (btnSaveEditArtist) {
+    btnSaveEditArtist.addEventListener('click', () => {
+      const artistInput = document.getElementById('edit-artist-name');
+      const newArtistName = artistInput ? artistInput.value.trim() : '';
+
+      if (!newArtistName) {
+        showToast('El nombre del cantante no puede estar vacío.');
+        return;
+      }
+
+      if (editingArtistName) {
+        let count = 0;
+        MUSIC_LIBRARY.forEach(track => {
+          if (track.artist === editingArtistName) {
+            track.artist = newArtistName;
+            count++;
+          }
+        });
+
+        saveStoredMusicLibrary(MUSIC_LIBRARY);
+        renderLibraryList();
+
+        if (MUSIC_LIBRARY[currentTrackIndex]) {
+          loadTrack(currentTrackIndex, isPlaying);
+        }
+
+        showToast(`Cantante actualizado en ${count} canción(es).`);
+        document.getElementById('modal-edit-artist')?.classList.remove('open');
+      }
+    });
+  }
+
   const volumeSlider = document.getElementById('volume-slider');
   if (volumeSlider) {
     volumeSlider.addEventListener('input', (e) => {
@@ -551,11 +621,11 @@ function setupUIEventListeners() {
 
         if (data.secure_url) {
           if (uploadStatus) uploadStatus.innerText = '¡Subida exitosa!';
-          const fileName = file.name.replace(/\.[^/.]+$/, '');
+          const parsed = parseFilenameToMeta(file.name);
           const newTrack = {
             id: data.public_id || ('cld-' + Date.now()),
-            title: fileName,
-            artist: 'Cloudinary',
+            title: parsed.title,
+            artist: parsed.artist,
             album: 'Mi Música',
             url: data.secure_url,
             cover: './assets/img/logopwa.png',
@@ -751,6 +821,15 @@ function openEditTrackModal(index) {
   if (modal) modal.classList.add('open');
 }
 
+function openEditArtistModal(artistName) {
+  editingArtistName = artistName;
+  const artistInput = document.getElementById('edit-artist-name');
+  if (artistInput) artistInput.value = artistName || '';
+
+  const modal = document.getElementById('modal-edit-artist');
+  if (modal) modal.classList.add('open');
+}
+
 function openDeleteTrackModal(index) {
   if (index < 0 || index >= MUSIC_LIBRARY.length) return;
   deletingTrackIndex = index;
@@ -943,18 +1022,21 @@ function renderLibraryList() {
       artistCard.style.cssText = 'background:#f8fafc; border:1px solid #ede9fe; border-radius:14px; margin-bottom:10px; overflow:hidden;';
 
       const cardHeader = document.createElement('div');
-      cardHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; background:#ffffff;';
+      cardHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; background:#ffffff; gap:8px;';
       cardHeader.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px; flex:1;">
-          <div style="width:36px; height:36px; border-radius:50%; background:#ede9fe; color:#000000; -webkit-text-fill-color:#000000; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;">
+        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+          <div style="width:36px; height:36px; border-radius:50%; background:#ede9fe; color:#000000; -webkit-text-fill-color:#000000; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem; flex-shrink:0;">
             ${artistName.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <div style="font-size:0.95rem; font-weight:700; color:#000000; -webkit-text-fill-color:#000000;">${artistName}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:0.95rem; font-weight:700; color:#000000; -webkit-text-fill-color:#000000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${artistName}</div>
             <div style="font-size:0.75rem; color:#334155; -webkit-text-fill-color:#334155; font-weight:600;">${artistTracks.length} canción${artistTracks.length === 1 ? '' : 'es'}</div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:6px;">
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <button class="btn-edit-artist" title="Editar cantante" style="padding:6px; border-radius:8px; background:#ede9fe; color:#6d28d9; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
           <button class="btn-play-artist" title="Reproducir cantante" style="padding:6px 12px; border-radius:16px; background:#8b5cf6; color:#ffffff; border:none; font-size:0.8rem; font-weight:600; cursor:pointer;">
             Reproducir
           </button>
@@ -972,9 +1054,14 @@ function renderLibraryList() {
       }
 
       cardHeader.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-play-artist')) return;
+        if (e.target.closest('.btn-play-artist') || e.target.closest('.btn-edit-artist')) return;
         expandedArtists[artistName] = !expandedArtists[artistName];
         renderLibraryList();
+      });
+
+      cardHeader.querySelector('.btn-edit-artist').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditArtistModal(artistName);
       });
 
       cardHeader.querySelector('.btn-play-artist').addEventListener('click', (e) => {
@@ -1005,13 +1092,17 @@ function createMusicItemElement(track, container, customIndex = null, sourceQueu
   const currentTrack = currentQueue[currentTrackIndex];
   const isCurrent = currentTrack && (currentTrack.id === track.id || currentTrack.url === track.url);
 
+  const displayTitle = track.title || 'Canción Sin Nombre';
+  const displayArtist = track.artist || 'Cloudinary';
+  const displayAlbum = track.album || 'Mi Música';
+
   const itemDiv = document.createElement('div');
   itemDiv.className = `music-item ${isCurrent ? 'active' : ''}`;
   itemDiv.innerHTML = `
     <img src="${track.cover || './assets/img/logopwa.png'}" class="music-item-img" alt="Cover">
     <div class="music-item-info">
-      <div class="music-item-title">${track.title}</div>
-      <div class="music-item-sub">${track.artist} • ${track.album}</div>
+      <div class="music-item-title">${displayTitle}</div>
+      <div class="music-item-sub">${displayArtist} • ${displayAlbum}</div>
     </div>
     <div class="item-actions">
       <button class="btn-item-action move-up" title="Mover arriba" aria-label="Mover arriba">
