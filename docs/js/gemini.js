@@ -1,5 +1,6 @@
 // Gemini AI Integration & Client Dispatcher
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { compartirUbicacion } from './ubicacion.js';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
@@ -316,6 +317,9 @@ export async function executeAlarmToolAsync(toolName, args) {
       }, 1200);
     }
     return '¡Claro! Abriendo el reproductor de música...';
+  }
+  if (toolName === 'compartir_ubicacion') {
+    return await compartirUbicacion();
   }
   return executeAlarmTool(toolName, args);
 }
@@ -797,6 +801,11 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
   if (attachment) {
     return 'He analizado la imagen proporcionada. Muestra un elemento visual que puedo examinar detalladamente. ¿Tienes alguna pregunta específica sobre su contenido o detalles?';
+  }
+
+  // Compartir Ubicación
+  if (lower.includes('compartir mi ubicacion') || lower.includes('compartir mi ubicación') || lower.includes('compartir ubicacion') || lower.includes('compartir ubicación') || lower.includes('donde estoy') || lower.includes('dónde estoy') || lower.includes('mi ubicacion') || lower.includes('mi ubicación')) {
+    return await compartirUbicacion();
   }
 
   // Llamar a contacto por voz
