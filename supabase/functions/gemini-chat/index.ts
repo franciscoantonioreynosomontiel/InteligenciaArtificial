@@ -285,6 +285,14 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
             peticion: { type: "STRING", description: "Petición o nombre de la canción o artista que el usuario quiere escuchar" }
           }
         }
+      },
+      {
+        name: "compartir_ubicacion",
+        description: "Obtiene la ubicación GPS exacta del usuario en tiempo real, la sincroniza en la base de datos y genera un enlace interactivo de Google Maps para compartir su ubicación o proximidad.",
+        parameters: {
+          type: "OBJECT",
+          properties: {}
+        }
       }
     ]
   }
@@ -419,7 +427,8 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
      - Para RESPONDER QUE FALTA POR COMPRAR O COMPLETAR: Revisa el contenido de las notas en el contexto recibido o invoca 'consultar_notas', y responde mencionando UNICAMENTE los elementos que aun NO estan marcados como completados ([ ]).
      - Para ELIMINAR una nota: usa 'eliminar_nota'.
    - ALARMAS: Si la peticion menciona "alarma", "despiértame", "sonar", "despertar" -> DEBES INVOCAR 'crear_alarma' O 'editar_alarma'.
-   - MUSICA Y REPRODUCTOR: Si el usuario te pide "ponme musica", "quiero escuchar musica", "pon musica", "reproduce musica", "ponme una cancion" o pide escuchar canciones o un artista -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'reproducir_musica'.`
+   - MUSICA Y REPRODUCTOR: Si el usuario te pide "ponme musica", "quiero escuchar musica", "pon musica", "reproduce musica", "ponme una cancion" o pide escuchar canciones o un artista -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'reproducir_musica'.
+   - UBICACION Y GEOLOCALIZACION: Si el usuario te pide "compartir mi ubicación", "dónde estoy", "compartir ubicación", "dónde me encuentro" o similar -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'compartir_ubicacion'.`
         }
       ]
     };
