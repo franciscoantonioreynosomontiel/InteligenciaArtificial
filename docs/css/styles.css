@@ -302,31 +302,57 @@ body {
   color: #b91c1c;
 }
 
-.btn-translate-toggle {
-  background: linear-gradient(135deg, #0284c7, #3b82f6);
-  color: white;
-  padding: 10px 18px;
-  border-radius: 24px;
+.translator-control-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-translate-hablar,
+.btn-translate-escuchar {
+  padding: 12px 22px;
+  border-radius: 28px;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3);
   transition: all 0.25s ease;
+  color: white;
 }
 
-.btn-translate-toggle:hover {
+.btn-translate-hablar {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
+}
+
+.btn-translate-hablar:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.45);
 }
 
-.btn-translate-toggle.active {
+.btn-translate-hablar.active {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
-  animation: pulseMic 1.5s infinite;
+  animation: pulseMic 1.2s infinite;
+}
+
+.btn-translate-escuchar {
+  background: linear-gradient(135deg, #0284c7, #3b82f6);
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35);
+}
+
+.btn-translate-escuchar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.45);
+}
+
+.btn-translate-escuchar.active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  animation: pulseMic 1.2s infinite;
 }
 
 /* Bottom Floating Control Bar around 3D canvas */

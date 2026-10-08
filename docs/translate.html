@@ -77,19 +77,25 @@
     <div id="translator-card" class="translator-card active">
       <div class="translator-header">
         <span class="translator-title">Traductor en tiempo real</span>
-        <div id="translator-status-text" class="translator-status-text stopped">Traductor apagado</div>
+        <div id="translator-status-text" class="translator-status-text stopped">Listo para traducir</div>
       </div>
       <div id="translator-log" class="translator-log">
-        <div class="translator-log-entry system">Presiona "Traducir" para iniciar la sesión bidireccional.</div>
+        <div class="translator-log-entry system">Presiona "Hablar" para traducir del español al inglés, o "Escuchar" para traducir del inglés al español.</div>
       </div>
     </div>
 
     <!-- Floating Translation Control Bar -->
-    <div class="bottom-control-bar">
-      <!-- Single Translation Toggle Button -->
-      <button id="btn-translate" class="btn-action btn-translate-toggle" title="Traducir en tiempo real" aria-label="Traducir">
+    <div class="bottom-control-bar translator-control-bar">
+      <!-- Button 1: Hablar (Spanish to English) -->
+      <button id="btn-hablar" class="btn-action btn-translate-hablar" title="Hablar en español (Traducir a inglés)" aria-label="Hablar">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-        <span>Traducir</span>
+        <span>Hablar</span>
+      </button>
+
+      <!-- Button 2: Escuchar (English to Spanish) -->
+      <button id="btn-escuchar" class="btn-action btn-translate-escuchar" title="Escuchar en inglés (Traducir a español)" aria-label="Escuchar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        <span>Escuchar</span>
       </button>
     </div>
 

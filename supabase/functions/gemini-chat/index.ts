@@ -34,6 +34,8 @@ interface RequestBody {
   image?: string;
   image_url?: string;
   knowledge_context?: string;
+  notes_context?: string;
+  alarms_context?: string;
   location_context?: string;
   time_context?: string;
 }
@@ -345,7 +347,7 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt, message, history, image, image_url, time_context } = body;
+    const { prompt, message, history, image, image_url, time_context, knowledge_context, notes_context, alarms_context } = body;
     const userPrompt = (prompt || message || 'Hola').trim();
 
     const apiKey = (
@@ -401,11 +403,15 @@ serve(async (req: Request) => {
 Tienes conocimientos amplios y profundos sobre programación, matemáticas, física, tecnología, cocina, ciencias, modelado 3D (Blender, GLB/GLTF), desarrollo web y conversación general.
 
 ${time_context ? `CONTEXTO TEMPORAL EN TIEMPO REAL: ${time_context}\nUsa siempre esta fecha y hora local como punto de referencia obligatorio para calcular tiempos relativos ("en 3 minutos", "en 10 minutos", "en 1 hora", etc.).` : ''}
+${notes_context ? `NOTAS Y LISTAS DEL USUARIO EN SEGUNDO PLANO (SOLO PARA CONSULTA): ${notes_context}` : ''}
+${alarms_context ? `ALARMAS Y RECORDATORIOS DEL USUARIO EN SEGUNDO PLANO (SOLO PARA CONSULTA): ${alarms_context}` : ''}
+${knowledge_context ? `CONOCIMIENTO DEL USUARIO EN SEGUNDO PLANO: ${knowledge_context}` : ''}
 
 REGLAS ABSOLUTAS E IMPERATIVAS:
-1. Responde UNICAMENTE con la respuesta final directa y clara en español.
-2. Queda STRICTAMENTE PROHIBIDO incluir pensamientos internos, notas de razonamiento, traducciones al inglés, borradores de pasos, desgloses de preguntas o metacomentarios.
-3. ESTILO CONVERSACIONAL Y FLUIDO:
+1. Responde UNICAMENTE a la pregunta o comentario explicito que el usuario te acaba de hacer en español.
+2. NUNCA, BAJO NINGUNA CIRCUNSTANCIA, menciones las notas, la lista de compras, elementos guardados, alarmas o recordatorios A MENOS QUE EL USUARIO TE PREGUNTE EXPLICITAMENTE SOBRE ELLOS. Si el usuario te saluda con "Hola" o te hace una pregunta general, responde UNICAMENTE a su saludo o pregunta sin añadir comentarios espontáneos como "veo que tienes compras guardadas" o similares.
+3. Queda STRICTAMENTE PROHIBIDO incluir pensamientos internos, notas de razonamiento, traducciones al inglés, borradores de pasos, desgloses de preguntas o metacomentarios.
+4. ESTILO CONVERSACIONAL Y FLUIDO:
    - Sé siempre conversacional, amigable, cercano y empático (estilo diálogo continuo, como ChatGPT).
    - Queda PROHIBIDO responder con párrafos de información masiva, paredes de texto o tutoriales gigantescos de golpe ante preguntas abiertas, síntomas, dudas o solicitudes generales.
    - Si el usuario te cuenta una situación, un problema o un síntoma (por ejemplo "me duele la cabeza con frecuencia, ¿qué podría ser?"), da una respuesta inicial breve, clara y orientativa, y hazle preguntas de seguimiento para obtener más información relevante antes de dar conclusiones apresuradas.

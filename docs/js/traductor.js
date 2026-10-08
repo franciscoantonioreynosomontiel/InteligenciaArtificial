@@ -6,26 +6,30 @@ const TRANSLATE_FUNCTION_NAME = 'traductor';
 export class RealtimeTranslator {
   constructor() {
     this.isActive = false;
+    this.currentMode = null; // 'hablar' (es -> en) or 'escuchar' (en -> es)
     this.recognition = null;
     this.synth = window.speechSynthesis;
-    this.btnTranslate = null;
+    this.btnHablar = null;
+    this.btnEscuchar = null;
     this.translatorCard = null;
     this.translatorStatusText = null;
     this.translatorLog = null;
     this.currentAudio = null;
     this.isProcessing = false;
-    this.currentLangIndex = 0;
-    this.supportedLangs = ['es-ES', 'en-US']; // Alternating recognition languages
   }
 
   init() {
-    this.btnTranslate = document.getElementById('btn-translate');
+    this.btnHablar = document.getElementById('btn-hablar');
+    this.btnEscuchar = document.getElementById('btn-escuchar');
     this.translatorCard = document.getElementById('translator-card');
     this.translatorStatusText = document.getElementById('translator-status-text');
     this.translatorLog = document.getElementById('translator-log');
 
-    if (this.btnTranslate) {
-      this.btnTranslate.addEventListener('click', () => this.toggleTranslation());
+    if (this.btnHablar) {
+      this.btnHablar.addEventListener('click', () => this.toggleMode('hablar'));
+    }
+    if (this.btnEscuchar) {
+      this.btnEscuchar.addEventListener('click', () => this.toggleMode('escuchar'));
     }
 
     this.setupRecognition();
@@ -39,13 +43,16 @@ export class RealtimeTranslator {
     }
 
     this.recognition = new SpeechRecognition();
-    this.recognition.continuous = true;
+    this.recognition.continuous = false; // Single-shot utterance for fast response
     this.recognition.interimResults = false;
-    this.recognition.lang = 'es-ES';
 
     this.recognition.onstart = () => {
-      console.log('RealtimeTranslator: Speech recognition started');
-      this.updateStatus('Traductor activo - Escuchando...', 'active');
+      console.log('RealtimeTranslator: Speech recognition started in mode:', this.currentMode);
+      if (this.currentMode === 'hablar') {
+        this.updateStatus('Habla en español...', 'active');
+      } else if (this.currentMode === 'escuchar') {
+        this.updateStatus('Escuchando en inglés...', 'active');
+      }
     };
 
     this.recognition.onresult = async (event) => {
@@ -62,65 +69,67 @@ export class RealtimeTranslator {
 
     this.recognition.onerror = (event) => {
       console.warn('RealtimeTranslator recognition error:', event.error);
-      if (this.isActive && event.error !== 'no-speech' && !this.isProcessing) {
-        setTimeout(() => this.restartRecognition(), 300);
+      this.stopTranslation();
+      if (event.error !== 'aborted') {
+        this.addLogMessage('error', 'Error capturando audio. Intenta de nuevo.');
       }
     };
 
     this.recognition.onend = () => {
       if (this.isActive && !this.isProcessing) {
-        this.restartRecognition();
+        this.stopTranslation();
       }
     };
   }
 
-  restartRecognition() {
-    if (!this.isActive || !this.recognition) return;
-    try {
-      this.recognition.start();
-    } catch (e) {}
-  }
-
-  toggleTranslation() {
-    if (this.isActive) {
+  toggleMode(mode) {
+    if (this.isActive && this.currentMode === mode) {
       this.stopTranslation();
     } else {
-      this.startTranslation();
+      this.startMode(mode);
     }
   }
 
-  startTranslation() {
-    if (!this.recognition) {
+  startMode(mode) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
       this.showToast('El reconocimiento de voz no está soportado en este navegador.');
       return;
     }
 
+    this.stopTranslation();
+
     this.isActive = true;
-    if (this.btnTranslate) {
-      this.btnTranslate.classList.add('active');
-      this.btnTranslate.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-        <span>Traductor activo</span>
-      `;
+    this.currentMode = mode;
+
+    if (this.btnHablar) this.btnHablar.classList.remove('active');
+    if (this.btnEscuchar) this.btnEscuchar.classList.remove('active');
+
+    if (mode === 'hablar') {
+      if (this.btnHablar) this.btnHablar.classList.add('active');
+      this.recognition.lang = 'es-ES';
+      this.addLogMessage('system', 'Modo "Hablar" activo (Español -> Inglés).');
+    } else {
+      if (this.btnEscuchar) this.btnEscuchar.classList.add('active');
+      this.recognition.lang = 'en-US';
+      this.addLogMessage('system', 'Modo "Escuchar" activo (Inglés -> Español).');
     }
 
     if (this.translatorCard) {
       this.translatorCard.classList.add('active');
     }
 
-    this.updateStatus('Traductor activo - Escuchando...', 'active');
-    this.addLogMessage('system', 'Sesión de traducción iniciada.');
-
     try {
       this.recognition.start();
     } catch (e) {
-      console.warn('Recognition already started:', e);
+      console.warn('Recognition start error:', e);
     }
   }
 
   stopTranslation() {
     this.isActive = false;
     this.isProcessing = false;
+    this.currentMode = null;
 
     if (this.recognition) {
       try {
@@ -132,21 +141,10 @@ export class RealtimeTranslator {
       this.synth.cancel();
     }
 
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio = null;
-    }
-
-    if (this.btnTranslate) {
-      this.btnTranslate.classList.remove('active');
-      this.btnTranslate.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-        <span>Traducir</span>
-      `;
-    }
+    if (this.btnHablar) this.btnHablar.classList.remove('active');
+    if (this.btnEscuchar) this.btnEscuchar.classList.remove('active');
 
     this.updateStatus('Traductor detenido', 'stopped');
-    this.addLogMessage('system', 'Traducción detenida.');
   }
 
   updateStatus(text, stateClass) {
@@ -169,36 +167,37 @@ export class RealtimeTranslator {
 
   async handleSpeechInput(inputText) {
     this.isProcessing = true;
-    this.addLogMessage('input', `Escuchado: "${inputText}"`);
+    const mode = this.currentMode || 'hablar';
+    const sourceLang = mode === 'hablar' ? 'es' : 'en';
+    const targetLang = mode === 'hablar' ? 'en' : 'es';
+
+    this.addLogMessage('input', `Escuchado (${sourceLang.toUpperCase()}): "${inputText}"`);
+    this.updateStatus('Traduciendo...', 'active');
 
     try {
       try { this.recognition.stop(); } catch (e) {}
 
-      const translationData = await this.callTranslationEdgeFunction(inputText);
+      const translationData = await this.callTranslationEdgeFunction(inputText, sourceLang, targetLang);
 
       if (translationData && translationData.translated_text) {
-        const detected = translationData.detected_lang || 'en';
-        const target = translationData.target_lang || 'es';
         const translated = translationData.translated_text;
-
-        this.addLogMessage('output', `[${detected.toUpperCase()} -> ${target.toUpperCase()}] ${translated}`);
+        this.addLogMessage('output', `Traducción (${targetLang.toUpperCase()}): "${translated}"`);
 
         if (translationData.audio_base64) {
           await this.playAudioBase64(translationData.audio_base64);
+        } else {
+          await this.fallbackBrowserSpeech(translated, targetLang);
         }
       }
     } catch (err) {
       console.error('Error in handleSpeechInput:', err);
       this.addLogMessage('error', 'Error en la traducción.');
     } finally {
-      this.isProcessing = false;
-      if (this.isActive) {
-        setTimeout(() => this.restartRecognition(), 400);
-      }
+      this.stopTranslation();
     }
   }
 
-  async callTranslationEdgeFunction(text) {
+  async callTranslationEdgeFunction(text, sourceLang, targetLang) {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${TRANSLATE_FUNCTION_NAME}`;
 
     let voiceIdEs = null;
@@ -223,93 +222,67 @@ export class RealtimeTranslator {
         },
         body: JSON.stringify({
           text,
+          source_lang: sourceLang,
+          target_lang: targetLang,
           voice_id_es: voiceIdEs,
           voice_id_en: voiceIdEn,
-          voice_id: voiceIdEs || voiceIdEn
+          voice_id: targetLang === 'en' ? voiceIdEn : voiceIdEs
         })
       });
 
       if (res.ok) {
         return await res.json();
       } else {
-        return this.localTranslationFallback(text);
+        return this.localTranslationFallback(text, sourceLang, targetLang);
       }
     } catch (e) {
-      return this.localTranslationFallback(text);
+      return this.localTranslationFallback(text, sourceLang, targetLang);
     }
   }
 
-  localTranslationFallback(text) {
+  localTranslationFallback(text, sourceLang, targetLang) {
     const cleanText = text.trim();
-    const lowerText = cleanText.toLowerCase();
+    let translated = cleanText;
 
-    const englishWords = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'how are you', 'what is your name', 'thank you', 'thanks', 'bye', 'goodbye', 'yes', 'no', 'please', 'help'];
-    const isExplicitEnglish = englishWords.some((w) => lowerText.includes(w)) || (/[a-zA-Z]/.test(cleanText) && !/[áéíóúñ¿¡]/i.test(cleanText));
-
-    const detected = isExplicitEnglish ? 'en' : 'es';
-    const target = isExplicitEnglish ? 'es' : 'en';
-
-    const dictionary = {
-      'hello': '¡Hola!',
-      'hi': '¡Hola!',
-      'hey': '¡Hola!',
-      'good morning': 'Buenos días',
-      'good afternoon': 'Buenas tardes',
-      'good evening': 'Buenas noches',
-      'how are you': '¿Cómo estás?',
-      'how are you?': '¿Cómo estás?',
-      'what is your name': '¿Cuál es tu nombre?',
-      'thank you': 'Muchas gracias',
-      'thanks': 'Gracias',
-      'bye': '¡Adiós!',
-      'goodbye': '¡Hasta luego!',
-      'yes': 'Sí',
-      'no': 'No',
-      'please': 'Por favor',
-      'hola': 'Hello!',
-      'buenos dias': 'Good morning!',
-      'buenos días': 'Good morning!',
-      'buenas tardes': 'Good afternoon!',
-      'buenas noches': 'Good evening!',
-      'como estas': 'How are you?',
-      'cómo estás': 'How are you?',
-      'gracias': 'Thank you!',
-      'muchas gracias': 'Thank you very much!',
-      'adios': 'Goodbye!',
-      'adiós': 'Goodbye!',
-      'por favor': 'Please'
-    };
-
-    let translated = dictionary[lowerText];
-
-    if (!translated) {
-      if (detected === 'en') {
-        translated = cleanText
-          .replace(/\bhello\b/gi, 'hola')
-          .replace(/\bhi\b/gi, 'hola')
-          .replace(/\bhow are you\b/gi, 'cómo estás')
-          .replace(/\bthank you\b/gi, 'gracias')
-          .replace(/\bthanks\b/gi, 'gracias')
-          .replace(/\bgoodbye\b/gi, 'adiós')
-          .replace(/\bbye\b/gi, 'adiós');
-      } else {
-        translated = cleanText
-          .replace(/\bhola\b/gi, 'hello')
-          .replace(/\bcómo estás\b/gi, 'how are you')
-          .replace(/\bcomo estas\b/gi, 'how are you')
-          .replace(/\bgracias\b/gi, 'thank you')
-          .replace(/\badiós\b/gi, 'goodbye')
-          .replace(/\badios\b/gi, 'goodbye');
-      }
+    if (sourceLang === 'es' && targetLang === 'en') {
+      translated = cleanText
+        .replace(/\bhola\b/gi, 'hello')
+        .replace(/\bcómo estás\b/gi, 'how are you')
+        .replace(/\bcomo estas\b/gi, 'how are you')
+        .replace(/\bgracias\b/gi, 'thank you')
+        .replace(/\badiós\b/gi, 'goodbye')
+        .replace(/\badios\b/gi, 'goodbye');
+    } else {
+      translated = cleanText
+        .replace(/\bhello\b/gi, 'hola')
+        .replace(/\bhi\b/gi, 'hola')
+        .replace(/\bhow are you\b/gi, 'cómo estás')
+        .replace(/\bthank you\b/gi, 'gracias')
+        .replace(/\bthanks\b/gi, 'gracias')
+        .replace(/\bgoodbye\b/gi, 'adiós')
+        .replace(/\bbye\b/gi, 'adiós');
     }
 
     return {
       original_text: cleanText,
-      detected_lang: detected,
-      target_lang: target,
+      detected_lang: sourceLang,
+      target_lang: targetLang,
       translated_text: translated,
       audio_base64: null
     };
+  }
+
+  fallbackBrowserSpeech(text, targetLang) {
+    return new Promise((resolve) => {
+      if (!this.synth) return resolve();
+      this.synth.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = targetLang === 'en' ? 'en-US' : 'es-ES';
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      this.synth.speak(utterance);
+    });
   }
 
   playAudioBase64(base64Data) {

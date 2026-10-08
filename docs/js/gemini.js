@@ -714,7 +714,7 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   const currentDateStr = now.toISOString().split('T')[0];
   const timeContext = `Fecha y hora actual local del usuario: ${currentDateStr} ${currentHourMin}`;
 
-  const fullPrompt = `${userPrompt || '¿Qué ves en esta imagen?'}${contextKnowledge}${contextAlarms}${contextNotes}`;
+  const cleanUserPrompt = userPrompt || '¿Qué ves en esta imagen?';
 
   if (userPrompt) {
     chatHistory.push({ role: 'user', content: userPrompt });
@@ -744,9 +744,11 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   try {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_NAME}`;
     const payload = {
-      prompt: fullPrompt,
+      prompt: cleanUserPrompt,
       history: chatHistory.slice(0, -1),
       knowledge_context: contextKnowledge,
+      notes_context: contextNotes,
+      alarms_context: contextAlarms,
       time_context: timeContext,
       image: attachmentData ? attachmentData.base64 : null
     };
