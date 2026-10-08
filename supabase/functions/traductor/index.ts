@@ -18,6 +18,7 @@ interface TranslationRequest {
   voice_id_en?: string;
   audio_base64?: string;
   source_lang?: string;
+  target_lang?: string;
 }
 
 interface TranslationResponse {
@@ -67,12 +68,20 @@ serve(async (req: Request) => {
       );
     }
 
+    const explicitSource = body.source_lang ? body.source_lang.toLowerCase() : null;
+    const explicitTarget = body.target_lang ? body.target_lang.toLowerCase() : null;
+
     const systemInstruction = {
       parts: [
         {
           text: `Eres un traductor simultaneo profesional entre Ingles y Espanol.
 TUS INSTRUCCIONES ESTRICTAS:
 1. Analiza la intervencion del usuario.
+${explicitSource && explicitTarget ? `
+2. Traduce el texto directamente del idioma origen "${explicitSource}" al idioma destino "${explicitTarget}".
+   - Si source_lang es "es" y target_lang es "en": Traduce el texto en Español al Inglés.
+   - Si source_lang es "en" y target_lang es "es": Traduce el texto en Inglés al Español.
+` : `
 2. Si el texto esta en INGLES (o predominantemente en ingles):
    - Detecta idioma: "en"
    - Idioma destino: "es"
@@ -81,10 +90,11 @@ TUS INSTRUCCIONES ESTRICTAS:
    - Detecta idioma: "es"
    - Idioma destino: "en"
    - Traduce al INGLES de manera natural, fluida y directa.
+`}
 4. RESPONDE UNICAMENTE EN FORMATO JSON STRICTO DE LA SIGUIENTE MANERA:
 {
-  "detected_lang": "en" | "es",
-  "target_lang": "es" | "en",
+  "detected_lang": "${explicitSource || 'en|es'}",
+  "target_lang": "${explicitTarget || 'es|en'}",
   "translated_text": "Texto traducido aqui"
 }`
         }
