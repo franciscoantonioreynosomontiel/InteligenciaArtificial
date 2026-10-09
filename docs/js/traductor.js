@@ -184,10 +184,14 @@ export class RealtimeTranslator {
         this.addLogMessage('output', `Traducción (${targetLang.toUpperCase()}): "${translated}"`);
 
         if (translationData.audio_base64) {
+          this.updateStatus('Reproduciendo voz...', 'active');
           await this.playAudioBase64(translationData.audio_base64);
         } else {
+          this.updateStatus('Reproduciendo voz...', 'active');
           await this.fallbackBrowserSpeech(translated, targetLang);
         }
+      } else if (translationData && translationData.error) {
+        this.addLogMessage('error', translationData.error);
       }
     } catch (err) {
       console.error('Error in handleSpeechInput:', err);
@@ -200,6 +204,7 @@ export class RealtimeTranslator {
   async callTranslationEdgeFunction(text, sourceLang, targetLang) {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${TRANSLATE_FUNCTION_NAME}`;
 
+    let voiceIdMain = null;
     let voiceIdEs = null;
     let voiceIdEn = null;
     try {
@@ -207,6 +212,7 @@ export class RealtimeTranslator {
       if (raw) {
         const settings = JSON.parse(raw);
         if (settings) {
+          voiceIdMain = settings.voice_id || null;
           voiceIdEs = settings.voice_id_es || settings.voice_id || null;
           voiceIdEn = settings.voice_id_en || settings.voice_id || null;
         }
@@ -224,15 +230,19 @@ export class RealtimeTranslator {
           text,
           source_lang: sourceLang,
           target_lang: targetLang,
+          voice_id: voiceIdMain || voiceIdEs || voiceIdEn,
           voice_id_es: voiceIdEs,
-          voice_id_en: voiceIdEn,
-          voice_id: targetLang === 'en' ? voiceIdEn : voiceIdEs
+          voice_id_en: voiceIdEn
         })
       });
 
       if (res.ok) {
         return await res.json();
       } else {
+        const errJson = await res.json().catch(() => null);
+        if (errJson && errJson.error) {
+          return errJson;
+        }
         return this.localTranslationFallback(text, sourceLang, targetLang);
       }
     } catch (e) {
@@ -288,15 +298,23 @@ export class RealtimeTranslator {
   playAudioBase64(base64Data) {
     return new Promise((resolve) => {
       if (this.currentAudio) {
-        this.currentAudio.pause();
+        try { this.currentAudio.pause(); } catch(e) {}
       }
       this.currentAudio = new Audio(`data:audio/mp3;base64,${base64Data}`);
       this.currentAudio.onended = () => resolve();
-      this.currentAudio.onerror = () => resolve();
-      this.currentAudio.play().catch(() => resolve());
+      this.currentAudio.onerror = (e) => {
+        console.warn('Audio playback error:', e);
+        resolve();
+      };
+      const playPromise = this.currentAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Audio play prevented or failed:', err);
+          resolve();
+        });
+      }
     });
   }
-
 
   showToast(msg) {
     const toast = document.createElement('div');
