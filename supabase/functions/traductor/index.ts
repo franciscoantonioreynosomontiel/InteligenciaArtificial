@@ -30,6 +30,15 @@ interface TranslationResponse {
   error?: string;
 }
 
+const CANDIDATE_MODELS = [
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-002',
+  'gemini-1.5-pro-latest',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-exp'
+];
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -71,30 +80,21 @@ serve(async (req: Request) => {
     const explicitSource = body.source_lang ? body.source_lang.toLowerCase() : null;
     const explicitTarget = body.target_lang ? body.target_lang.toLowerCase() : null;
 
+    const targetLangCode = explicitTarget || (explicitSource === 'es' ? 'en' : 'es');
+    const sourceLangCode = explicitSource || (explicitTarget === 'en' ? 'es' : 'en');
+
     const systemInstruction = {
       parts: [
         {
           text: `Eres un traductor simultaneo profesional entre Ingles y Espanol.
 TUS INSTRUCCIONES ESTRICTAS:
-1. Analiza la intervencion del usuario.
-${explicitSource && explicitTarget ? `
-2. Traduce el texto directamente del idioma origen "${explicitSource}" al idioma destino "${explicitTarget}".
+1. Traduce el texto entregado por el usuario del idioma origen "${sourceLangCode}" al idioma destino "${targetLangCode}".
    - Si source_lang es "es" y target_lang es "en": Traduce el texto en Español al Inglés.
    - Si source_lang es "en" y target_lang es "es": Traduce el texto en Inglés al Español.
-` : `
-2. Si el texto esta en INGLES (o predominantemente en ingles):
-   - Detecta idioma: "en"
-   - Idioma destino: "es"
-   - Traduce al ESPANOL de manera natural, fluida y directa.
-3. Si el texto esta en ESPANOL (o predominantemente en espanol):
-   - Detecta idioma: "es"
-   - Idioma destino: "en"
-   - Traduce al INGLES de manera natural, fluida y directa.
-`}
-4. RESPONDE UNICAMENTE EN FORMATO JSON STRICTO DE LA SIGUIENTE MANERA:
+2. RESPONDE UNICAMENTE EN FORMATO JSON STRICTO DE LA SIGUIENTE MANERA SIN TEXTO ADICIONAL:
 {
-  "detected_lang": "${explicitSource || 'en|es'}",
-  "target_lang": "${explicitTarget || 'es|en'}",
+  "detected_lang": "${sourceLangCode}",
+  "target_lang": "${targetLangCode}",
   "translated_text": "Texto traducido aqui"
 }`
         }
@@ -108,47 +108,62 @@ ${explicitSource && explicitTarget ? `
       }
     ];
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
+    let rawReply = '';
+    let lastError = '';
 
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction,
-        contents,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json"
+    for (const modelName of CANDIDATE_MODELS) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
+
+      try {
+        const geminiRes = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction,
+            contents,
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 1024,
+              responseMimeType: "application/json"
+            }
+          })
+        });
+
+        if (geminiRes.ok) {
+          const aiData = await geminiRes.json();
+          rawReply = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (rawReply) break;
+        } else {
+          const errText = await geminiRes.text();
+          lastError = `[${modelName}] ${errText}`;
+          console.warn(`Error llamando a modelo ${modelName}:`, errText);
         }
-      })
-    });
+      } catch (e: any) {
+        lastError = `[${modelName}] ${e.message}`;
+        console.warn(`Excepción llamando a ${modelName}:`, e);
+      }
+    }
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
+    if (!rawReply) {
       return new Response(
-        JSON.stringify({ error: `Error en respuesta de Gemini: ${errText}` }),
+        JSON.stringify({ error: `Error en la traducción con Gemini: ${lastError || 'No fue posible obtener respuesta.'}` }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const aiData = await geminiRes.json();
-    const rawReply = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
     let parsedResult: { detected_lang: 'en' | 'es'; target_lang: 'en' | 'es'; translated_text: string } = {
-      detected_lang: 'es',
-      target_lang: 'en',
+      detected_lang: sourceLangCode as 'en' | 'es',
+      target_lang: targetLangCode as 'en' | 'es',
       translated_text: ''
     };
 
     try {
-      const cleanJson = rawReply.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanJson = rawReply.replace(/```json/gi, '').replace(/```/g, '').trim();
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
-      const isEnglish = /[a-zA-Z]/.test(inputText) && !/[áéíóúñ¿¡]/i.test(inputText);
       parsedResult = {
-        detected_lang: isEnglish ? 'en' : 'es',
-        target_lang: isEnglish ? 'es' : 'en',
+        detected_lang: sourceLangCode as 'en' | 'es',
+        target_lang: targetLangCode as 'en' | 'es',
         translated_text: rawReply.trim()
       };
     }
@@ -157,12 +172,13 @@ ${explicitSource && explicitTarget ? `
 
     if (elevenLabsApiKey && parsedResult.translated_text) {
       try {
-        let voiceId = body.voice_id;
-        if (parsedResult.target_lang === 'en') {
-          voiceId = body.voice_id_en || body.voice_id || '21m00Tcm4TlvDq8ikWAM';
-        } else {
-          voiceId = body.voice_id_es || body.voice_id || 'EXAVITQu4vr4xnSDxMaL';
-        }
+        // Use user's configured voice from aprender.html for both Spanish and English
+        let voiceId = body.voice_id ||
+          (parsedResult.target_lang === 'en' ? body.voice_id_en : body.voice_id_es) ||
+          body.voice_id_es ||
+          body.voice_id_en ||
+          'EXAVITQu4vr4xnSDxMaL';
+
         const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
         const ttsRes = await fetch(ttsUrl, {
           method: 'POST',
@@ -189,6 +205,9 @@ ${explicitSource && explicitTarget ? `
             binary += String.fromCharCode(bytes[i]);
           }
           audioBase64 = btoa(binary);
+        } else {
+          const ttsErr = await ttsRes.text();
+          console.warn('ElevenLabs TTS response error:', ttsErr);
         }
       } catch (e) {
         console.warn('ElevenLabs TTS error in traductor Edge Function:', e);
