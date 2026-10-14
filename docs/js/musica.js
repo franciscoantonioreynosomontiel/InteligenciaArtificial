@@ -144,12 +144,20 @@ let isWakeWordActive = false;
 let isProcessingCommand = false;
 let currentElevenAudio = null;
 
+// Background VAD Monitor State for Music Page
+let micAudioStream = null;
+let audioContext = null;
+let audioAnalyser = null;
+let vadCheckInterval = null;
+const VAD_THRESHOLD = 14;
+
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
 
 document.addEventListener('DOMContentLoaded', () => {
   setup3DViewer();
   setupSpeechRecognition();
+  initMusicMicPermissionsAndVAD();
   initMusicWakeWordListener();
   setupAudioPlayerEvents();
   setupUIEventListeners();
@@ -158,6 +166,58 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLibraryList();
   fetchCloudinaryTracksFromEdge();
 });
+
+function initMusicMicPermissionsAndVAD() {
+  const resumeAudioCtx = () => {
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {});
+    }
+  };
+  window.addEventListener('touchstart', resumeAudioCtx, { passive: true });
+  window.addEventListener('click', resumeAudioCtx, { passive: true });
+
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then((stream) => {
+        micAudioStream = stream;
+        setupMusicVadMonitor(stream);
+      })
+      .catch((e) => console.warn('Mic permission or VAD error in music page:', e));
+  }
+}
+
+function setupMusicVadMonitor(stream) {
+  try {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxClass) return;
+    audioContext = new AudioCtxClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 256;
+    source.connect(audioAnalyser);
+
+    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+
+    if (vadCheckInterval) clearInterval(vadCheckInterval);
+    vadCheckInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (isListeningGLTF || isProcessingCommand) return;
+
+      audioAnalyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const averageVolume = sum / dataArray.length;
+
+      if (averageVolume > VAD_THRESHOLD && !isWakeWordActive) {
+        startMusicWakeWord();
+      }
+    }, 150);
+  } catch (e) {
+    console.warn('Music VAD Monitor error:', e);
+  }
+}
 
 function initMusicWakeWordListener() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -171,8 +231,6 @@ function initMusicWakeWordListener() {
   wakeWordRecognition.lang = 'es-ES';
   wakeWordRecognition.continuous = true;
   wakeWordRecognition.interimResults = true;
-
-  let noSpeechCount = 0;
 
   wakeWordRecognition.onstart = () => {
     isWakeWordActive = true;
@@ -200,7 +258,6 @@ function initMusicWakeWordListener() {
         if (commandAfter && commandAfter.length > 2) {
           handleMusicVoiceCommand(commandAfter);
         } else {
-          // Listen for next spoken command without pausing background music!
           try {
             recognition.start();
           } catch(e) {}
@@ -211,21 +268,15 @@ function initMusicWakeWordListener() {
   };
 
   wakeWordRecognition.onerror = (event) => {
-    if (event.error === 'no-speech') {
-      noSpeechCount++;
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      console.warn('Music wake word listener error:', event.error);
     }
   };
 
   wakeWordRecognition.onend = () => {
     isWakeWordActive = false;
-    if (document.visibilityState === 'visible' && !isListeningGLTF && !isProcessingCommand) {
-      const backoffMs = noSpeechCount > 2 ? 6000 : (noSpeechCount > 0 ? 3000 : 1200);
-      setTimeout(() => startMusicWakeWord(), backoffMs);
-    }
+    // Eliminating continuous wakeWordRecognition start loop prevents system start beeping
   };
-
-  window.addEventListener('touchstart', () => { noSpeechCount = 0; }, { passive: true });
-  window.addEventListener('click', () => { noSpeechCount = 0; }, { passive: true });
 
   startMusicWakeWord();
 }
@@ -334,6 +385,7 @@ function handleGLTFTouch() {
   if (isListeningGLTF) {
     recognition.stop();
   } else {
+    stopMusicWakeWord();
     stopElevenSpeech();
     try {
       recognition.start();
@@ -399,10 +451,18 @@ async function handleMusicVoiceCommand(userPrompt) {
     return;
   }
 
-  if (lower === 'reproduce' || lower === 'sigue' || lower === 'continua' || lower === 'continúa' || lower === 'reproduce la musica' || lower === 'reproduce la música') {
-    if (!isPlaying) togglePlayPause();
-    showThoughtBubble('Reproduciendo música.');
-    if (speechEnabled) speakResponse('Reproduciendo música.');
+  if (lower === 'reproduce' || lower === 'sigue' || lower === 'continua' || lower === 'continúa' || lower === 'reproduce la musica' || lower === 'reproduce la música' || lower === 'pon musica' || lower === 'pon música' || lower === 'pon algo' || lower === 'pone algo' || lower === 'toca algo' || lower === 'pone una cancion' || lower === 'pone una canción' || lower === 'pon una cancion' || lower === 'pon una canción' || lower === 'reproduce algo') {
+    if (!isPlaying) {
+      if (!audioPlayer.src || audioPlayer.src === window.location.href) {
+        loadTrack(0, true);
+      } else {
+        togglePlayPause();
+      }
+    }
+    const currentTrack = currentQueue[currentTrackIndex];
+    const msg = currentTrack ? `¡Claro! Reproduciendo "${currentTrack.title}".` : '¡Claro! Reproduciendo música.';
+    showThoughtBubble(msg);
+    if (speechEnabled) speakResponse(msg);
     isProcessingCommand = false;
     startMusicWakeWord();
     return;

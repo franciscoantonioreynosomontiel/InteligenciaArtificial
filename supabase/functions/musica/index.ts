@@ -307,7 +307,18 @@ serve(async (req: Request) => {
     }
 
     // Check generic play request
-    if (!matchedAction && (lowerPrompt.includes('ponme musica') || lowerPrompt.includes('quiero escuchar musica') || lowerPrompt.includes('pon musica') || lowerPrompt.includes('musica'))) {
+    if (!matchedAction && (
+      lowerPrompt.includes('ponme musica') ||
+      lowerPrompt.includes('quiero escuchar musica') ||
+      lowerPrompt.includes('pon musica') ||
+      lowerPrompt.includes('musica') ||
+      lowerPrompt.includes('pon algo') ||
+      lowerPrompt.includes('pone algo') ||
+      lowerPrompt.includes('toca algo') ||
+      lowerPrompt.includes('pone una cancion') ||
+      lowerPrompt.includes('pon una cancion') ||
+      lowerPrompt.includes('reproduce algo')
+    )) {
       if (library.length > 0) {
         matchedAction = 'play_track';
         matchedTrackIndex = currentIndex >= 0 && currentIndex < library.length ? currentIndex : 0;
