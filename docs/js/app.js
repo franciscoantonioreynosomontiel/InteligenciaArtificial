@@ -16,6 +16,9 @@ let isChatRecording = false;
 let activeRecordingSource = null; // 'main' or 'chat'
 let currentAttachment = null; // { base64, url }
 let recognition = null;
+let wakeWordRecognition = null;
+let isWakeWordActive = false;
+let isSpeakingOrProcessing = false;
 let synth = window.speechSynthesis;
 let currentElevenAudio = null;
 
@@ -429,7 +432,130 @@ function requestPermissions() {
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
+
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop());
+        console.log('Microphone permission granted on app launch.');
+        initWakeWordListener();
+      })
+      .catch((err) => {
+        console.warn('Microphone permission request error or denied:', err);
+        initWakeWordListener();
+      });
+  } else {
+    initWakeWordListener();
+  }
 }
+
+function initWakeWordListener() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  if (wakeWordRecognition) {
+    try { wakeWordRecognition.stop(); } catch (e) {}
+  }
+
+  wakeWordRecognition = new SpeechRecognition();
+  wakeWordRecognition.lang = 'es-ES';
+  wakeWordRecognition.continuous = true;
+  wakeWordRecognition.interimResults = true;
+
+  wakeWordRecognition.onstart = () => {
+    isWakeWordActive = true;
+    console.log('Wake Word Listener Active ("Hey Toto")...');
+  };
+
+  wakeWordRecognition.onresult = (event) => {
+    if (isMainRecording || isChatRecording || isSpeakingOrProcessing) return;
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      const transcript = event.results[i][0].transcript.toLowerCase().trim();
+
+      const wakeMatch = transcript.match(/\b(hey toto|oye toto|hola toto|ok toto|\btoto\b)\b/i);
+
+      if (wakeMatch) {
+        console.log('Wake word detected:', transcript);
+
+        stopWakeWordListener();
+
+        const matchedStr = wakeMatch[0];
+        const wakeIdx = transcript.indexOf(matchedStr);
+        const commandAfter = transcript.substring(wakeIdx + matchedStr.length).replace(/^[,\.\s]+/, '').trim();
+
+        showThoughtBubble('¡Te escucho! ¿En qué te ayudo?', 3000);
+
+        if (commandAfter && commandAfter.length > 2) {
+          handleUserInput(commandAfter, true, false);
+        } else {
+          if (mainSpeechEnabled) {
+            speakResponse('¡Dime! Te escucho.', true).then(() => {
+              startMainMicRecording();
+            });
+          } else {
+            startMainMicRecording();
+          }
+        }
+        break;
+      }
+    }
+  };
+
+  wakeWordRecognition.onerror = (event) => {
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      console.warn('Wake word listener error:', event.error);
+    }
+  };
+
+  wakeWordRecognition.onend = () => {
+    isWakeWordActive = false;
+    if (document.visibilityState === 'visible' && !isMainRecording && !isChatRecording && !isSpeakingOrProcessing) {
+      setTimeout(() => startWakeWordListener(), 800);
+    }
+  };
+
+  startWakeWordListener();
+}
+
+function startWakeWordListener() {
+  if (wakeWordRecognition && !isWakeWordActive && !isMainRecording && !isChatRecording && !isSpeakingOrProcessing) {
+    if (document.visibilityState === 'visible') {
+      try {
+        wakeWordRecognition.start();
+      } catch (e) {}
+    }
+  }
+}
+
+function stopWakeWordListener() {
+  if (wakeWordRecognition && isWakeWordActive) {
+    try {
+      wakeWordRecognition.stop();
+    } catch (e) {}
+    isWakeWordActive = false;
+  }
+}
+
+function startMainMicRecording() {
+  if (!recognition) return;
+  if (isMainRecording || isChatRecording) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  activeRecordingSource = 'main';
+  try {
+    recognition.start();
+  } catch (e) {}
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    stopWakeWordListener();
+    stopSpeech();
+  } else if (document.visibilityState === 'visible') {
+    startWakeWordListener();
+  }
+});
 
 function showThoughtBubbleLoading() {
   const container = document.querySelector('.thought-bubble-container');
@@ -1005,11 +1131,16 @@ function showAttachmentPreview(base64Src) {
 async function handleUserInput(text, isVoice = false, fromChat = false) {
   if (!text && !currentAttachment) return;
 
+  isSpeakingOrProcessing = true;
+  stopWakeWordListener();
+
   if (currentTriggeredAlarm) {
     const actions = currentTriggeredAlarm.stopActions || ['button'];
     if (actions.includes('phrase')) {
       stopActiveAlarm();
       appendChatMessage(`[Alarma detenida por voz] ${text}`, 'user');
+      isSpeakingOrProcessing = false;
+      startWakeWordListener();
       return;
     }
   }
@@ -1041,9 +1172,9 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
     appendChatMessage(responseText, 'ai');
 
     if (isChatOpen) {
-      if (chatSpeechEnabled && responseText) speakResponse(responseText, false);
+      if (chatSpeechEnabled && responseText) await speakResponse(responseText, false);
     } else {
-      if (mainSpeechEnabled && responseText) speakResponse(responseText, true);
+      if (mainSpeechEnabled && responseText) await speakResponse(responseText, true);
     }
   } catch (err) {
     stopThoughtBubbleLoading();
@@ -1052,6 +1183,9 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
     if (!isChatOpen) showThoughtBubble(errorMsg, 4000);
     else hideThoughtBubble();
     appendChatMessage(errorMsg, 'ai');
+  } finally {
+    isSpeakingOrProcessing = false;
+    startWakeWordListener();
   }
 }
 
@@ -1115,71 +1249,100 @@ function appendChatMessage(text, sender, imageBase64 = null, saveToSession = tru
   }
 }
 
-async function speakResponse(text, isVoiceBubble = false) {
-  const chatDrawer = document.getElementById('chat-drawer');
-  const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
+function speakResponse(text, isVoiceBubble = false) {
+  return new Promise(async (resolve) => {
+    const chatDrawer = document.getElementById('chat-drawer');
+    const isChatOpen = chatDrawer && chatDrawer.classList.contains('open');
 
-  if (isChatOpen && !chatSpeechEnabled) {
-    stopSpeech();
-    return;
-  }
-  if (!isChatOpen && !mainSpeechEnabled) {
-    stopSpeech();
-    return;
-  }
-
-  stopSpeech();
-
-  const cleanText = (text || '').replace(/[*_#`~]/g, '').trim();
-  if (!cleanText) return;
-
-  let voiceSettings = null;
-  try {
-    const raw = localStorage.getItem('ia_agent_voice_settings');
-    if (raw) voiceSettings = JSON.parse(raw);
-  } catch (e) {}
-
-  const voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
-
-  if (!voiceId) return;
-
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'text_to_speech',
-        text: cleanText,
-        voice_id: voiceId
-      })
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.audio_base64) {
-        currentElevenAudio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
-        if (scene3D) scene3D.setSpeakingState(true);
-
-        currentElevenAudio.onended = () => {
-          if (scene3D) scene3D.setSpeakingState(false);
-          if (isVoiceBubble) setTimeout(() => hideThoughtBubble(), 2000);
-          currentElevenAudio = null;
-        };
-
-        currentElevenAudio.onerror = () => {
-          if (scene3D) scene3D.setSpeakingState(false);
-          currentElevenAudio = null;
-        };
-
-        currentElevenAudio.play().catch(() => {
-          if (scene3D) scene3D.setSpeakingState(false);
-        });
-      }
+    if (isChatOpen && !chatSpeechEnabled) {
+      stopSpeech();
+      return resolve();
     }
-  } catch (e) {}
+    if (!isChatOpen && !mainSpeechEnabled) {
+      stopSpeech();
+      return resolve();
+    }
+
+    stopSpeech();
+
+    const cleanText = (text || '').replace(/[*_#`~]/g, '').trim();
+    if (!cleanText) return resolve();
+
+    let voiceSettings = null;
+    try {
+      const raw = localStorage.getItem('ia_agent_voice_settings');
+      if (raw) voiceSettings = JSON.parse(raw);
+    } catch (e) {}
+
+    const voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
+
+    if (!voiceId) return resolve();
+
+    isSpeakingOrProcessing = true;
+    stopWakeWordListener();
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          action: 'text_to_speech',
+          text: cleanText,
+          voice_id: voiceId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.audio_base64) {
+          currentElevenAudio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
+          if (scene3D) scene3D.setSpeakingState(true);
+
+          currentElevenAudio.onended = () => {
+            if (scene3D) scene3D.setSpeakingState(false);
+            if (isVoiceBubble) setTimeout(() => hideThoughtBubble(), 2000);
+            currentElevenAudio = null;
+            isSpeakingOrProcessing = false;
+            startWakeWordListener();
+            resolve();
+          };
+
+          currentElevenAudio.onerror = () => {
+            if (scene3D) scene3D.setSpeakingState(false);
+            currentElevenAudio = null;
+            isSpeakingOrProcessing = false;
+            startWakeWordListener();
+            resolve();
+          };
+
+          const playPromise = currentElevenAudio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              if (scene3D) scene3D.setSpeakingState(false);
+              isSpeakingOrProcessing = false;
+              startWakeWordListener();
+              resolve();
+            });
+          }
+        } else {
+          isSpeakingOrProcessing = false;
+          startWakeWordListener();
+          resolve();
+        }
+      } else {
+        isSpeakingOrProcessing = false;
+        startWakeWordListener();
+        resolve();
+      }
+    } catch (e) {
+      isSpeakingOrProcessing = false;
+      startWakeWordListener();
+      resolve();
+    }
+  });
 }
 
 function showToast(message) {
