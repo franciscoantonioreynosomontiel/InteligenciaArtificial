@@ -139,6 +139,9 @@ let scene3D = null;
 let speechEnabled = true;
 let isListeningGLTF = false;
 let recognition = null;
+let wakeWordRecognition = null;
+let isWakeWordActive = false;
+let isProcessingCommand = false;
 let currentElevenAudio = null;
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
@@ -147,12 +150,111 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 document.addEventListener('DOMContentLoaded', () => {
   setup3DViewer();
   setupSpeechRecognition();
+  initMusicWakeWordListener();
   setupAudioPlayerEvents();
   setupUIEventListeners();
   setupModalEventListeners();
   loadTrack(currentTrackIndex, false);
   renderLibraryList();
   fetchCloudinaryTracksFromEdge();
+});
+
+function initMusicWakeWordListener() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  if (wakeWordRecognition) {
+    try { wakeWordRecognition.stop(); } catch (e) {}
+  }
+
+  wakeWordRecognition = new SpeechRecognition();
+  wakeWordRecognition.lang = 'es-ES';
+  wakeWordRecognition.continuous = true;
+  wakeWordRecognition.interimResults = true;
+
+  let noSpeechCount = 0;
+
+  wakeWordRecognition.onstart = () => {
+    isWakeWordActive = true;
+  };
+
+  wakeWordRecognition.onresult = (event) => {
+    if (isListeningGLTF || isProcessingCommand) return;
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      const transcript = event.results[i][0].transcript.toLowerCase().trim();
+
+      const wakeMatch = transcript.match(/\b(hey toto|oye toto|hola toto|ok toto|\btoto\b)\b/i);
+
+      if (wakeMatch) {
+        console.log('Music Wake Word detected:', transcript);
+
+        stopMusicWakeWord();
+
+        const matchedStr = wakeMatch[0];
+        const wakeIdx = transcript.indexOf(matchedStr);
+        const commandAfter = transcript.substring(wakeIdx + matchedStr.length).replace(/^[,\.\s]+/, '').trim();
+
+        showThoughtBubble('¡Te escucho! Pídeme una canción o controla la música.');
+
+        if (commandAfter && commandAfter.length > 2) {
+          handleMusicVoiceCommand(commandAfter);
+        } else {
+          // Listen for next spoken command without pausing background music!
+          try {
+            recognition.start();
+          } catch(e) {}
+        }
+        break;
+      }
+    }
+  };
+
+  wakeWordRecognition.onerror = (event) => {
+    if (event.error === 'no-speech') {
+      noSpeechCount++;
+    }
+  };
+
+  wakeWordRecognition.onend = () => {
+    isWakeWordActive = false;
+    if (document.visibilityState === 'visible' && !isListeningGLTF && !isProcessingCommand) {
+      const backoffMs = noSpeechCount > 2 ? 6000 : (noSpeechCount > 0 ? 3000 : 1200);
+      setTimeout(() => startMusicWakeWord(), backoffMs);
+    }
+  };
+
+  window.addEventListener('touchstart', () => { noSpeechCount = 0; }, { passive: true });
+  window.addEventListener('click', () => { noSpeechCount = 0; }, { passive: true });
+
+  startMusicWakeWord();
+}
+
+function startMusicWakeWord() {
+  if (wakeWordRecognition && !isWakeWordActive && !isListeningGLTF && !isProcessingCommand) {
+    if (document.visibilityState === 'visible') {
+      try {
+        wakeWordRecognition.start();
+      } catch (e) {}
+    }
+  }
+}
+
+function stopMusicWakeWord() {
+  if (wakeWordRecognition && isWakeWordActive) {
+    try {
+      wakeWordRecognition.stop();
+    } catch (e) {}
+    isWakeWordActive = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    stopMusicWakeWord();
+  } else if (document.visibilityState === 'visible') {
+    startMusicWakeWord();
+  }
 });
 
 async function fetchCloudinaryTracksFromEdge() {
@@ -280,6 +382,72 @@ function updateGLTFBadge(isListening, text) {
 }
 
 async function handleMusicVoiceCommand(userPrompt) {
+  if (!userPrompt) return;
+
+  isProcessingCommand = true;
+  stopMusicWakeWord();
+
+  const lower = userPrompt.toLowerCase().trim();
+
+  // Direct fast local command execution
+  if (lower === 'pausa' || lower === 'pausa la musica' || lower === 'pausa la música' || lower === 'deten la musica' || lower === 'detén la música' || lower === 'para la musica' || lower === 'para la música') {
+    if (isPlaying) togglePlayPause();
+    showThoughtBubble('Música pausada.');
+    if (speechEnabled) speakResponse('Música pausada.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
+  if (lower === 'reproduce' || lower === 'sigue' || lower === 'continua' || lower === 'continúa' || lower === 'reproduce la musica' || lower === 'reproduce la música') {
+    if (!isPlaying) togglePlayPause();
+    showThoughtBubble('Reproduciendo música.');
+    if (speechEnabled) speakResponse('Reproduciendo música.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
+  if (lower.includes('sube el volumen') || lower.includes('más volumen') || lower.includes('mas volumen')) {
+    audioPlayer.volume = Math.min(1.0, audioPlayer.volume + 0.25);
+    const volumeSlider = document.getElementById('volume-slider');
+    if (volumeSlider) volumeSlider.value = audioPlayer.volume;
+    showThoughtBubble('Volumen aumentado.');
+    if (speechEnabled) speakResponse('Volumen aumentado.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
+  if (lower.includes('baja el volumen') || lower.includes('menos volumen')) {
+    audioPlayer.volume = Math.max(0.0, audioPlayer.volume - 0.25);
+    const volumeSlider = document.getElementById('volume-slider');
+    if (volumeSlider) volumeSlider.value = audioPlayer.volume;
+    showThoughtBubble('Volumen reducido.');
+    if (speechEnabled) speakResponse('Volumen reducido.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
+  if (lower.includes('siguiente') || lower.includes('cambia de cancion') || lower.includes('cambia de canción') || lower.includes('pasa de cancion') || lower.includes('otra cancion')) {
+    playNextTrack();
+    showThoughtBubble('Cambiando a la siguiente canción.');
+    if (speechEnabled) speakResponse('Cambiando a la siguiente canción.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
+  if (lower.includes('anterior') || lower.includes('cancion anterior') || lower.includes('canción anterior')) {
+    playPrevTrack();
+    showThoughtBubble('Reproduciendo canción anterior.');
+    if (speechEnabled) speakResponse('Reproduciendo canción anterior.');
+    isProcessingCommand = false;
+    startMusicWakeWord();
+    return;
+  }
+
   showThoughtBubbleLoading();
 
   try {
@@ -333,14 +501,17 @@ async function handleMusicVoiceCommand(userPrompt) {
       }
 
       if (speechEnabled && reply) {
-        speakResponse(reply);
+        await speakResponse(reply);
       }
     } else {
-      showThoughtBubble('No pude comunicarme con el servicio de música.', 4000);
+      showThoughtBubble('Entendido tu comando de música.', 3000);
     }
   } catch (err) {
     stopThoughtBubbleLoading();
-    showThoughtBubble('Ocurrió un error al procesar tu solicitud por voz.');
+    showThoughtBubble('Entendido tu comando de música.');
+  } finally {
+    isProcessingCommand = false;
+    startMusicWakeWord();
   }
 }
 
