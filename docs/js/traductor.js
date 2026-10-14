@@ -69,15 +69,16 @@ export class RealtimeTranslator {
 
     this.recognition.onerror = (event) => {
       console.warn('RealtimeTranslator recognition error:', event.error);
-      this.stopTranslation();
-      if (event.error !== 'aborted') {
-        this.addLogMessage('error', 'Error capturando audio. Intenta de nuevo.');
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        this.addLogMessage('error', 'Error capturando audio. Reintentando...');
       }
     };
 
     this.recognition.onend = () => {
       if (this.isActive && !this.isProcessing) {
-        this.stopTranslation();
+        try {
+          this.recognition.start();
+        } catch (e) {}
       }
     };
   }
@@ -166,6 +167,7 @@ export class RealtimeTranslator {
   }
 
   async handleSpeechInput(inputText) {
+    if (!this.isActive) return;
     this.isProcessing = true;
     const mode = this.currentMode || 'hablar';
     const sourceLang = mode === 'hablar' ? 'es' : 'en';
@@ -197,24 +199,27 @@ export class RealtimeTranslator {
       console.error('Error in handleSpeechInput:', err);
       this.addLogMessage('error', 'Error en la traducción.');
     } finally {
-      this.stopTranslation();
+      this.isProcessing = false;
+      if (this.isActive) {
+        const statusText = mode === 'hablar' ? 'Habla en español...' : 'Escuchando en inglés...';
+        this.updateStatus(statusText, 'active');
+        try {
+          this.recognition.start();
+        } catch (e) {}
+      }
     }
   }
 
   async callTranslationEdgeFunction(text, sourceLang, targetLang) {
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${TRANSLATE_FUNCTION_NAME}`;
 
-    let voiceIdMain = null;
-    let voiceIdEs = null;
-    let voiceIdEn = null;
+    let voiceId = null;
     try {
       const raw = localStorage.getItem('ia_agent_voice_settings');
       if (raw) {
         const settings = JSON.parse(raw);
         if (settings) {
-          voiceIdMain = settings.voice_id || null;
-          voiceIdEs = settings.voice_id_es || settings.voice_id || null;
-          voiceIdEn = settings.voice_id_en || settings.voice_id || null;
+          voiceId = settings.voice_id || settings.voice_id_es || settings.voice_id_en || null;
         }
       }
     } catch (e) {}
@@ -230,24 +235,74 @@ export class RealtimeTranslator {
           text,
           source_lang: sourceLang,
           target_lang: targetLang,
-          voice_id: voiceIdMain || voiceIdEs || voiceIdEn,
-          voice_id_es: voiceIdEs,
-          voice_id_en: voiceIdEn
+          voice_id: voiceId
         })
       });
 
       if (res.ok) {
-        return await res.json();
-      } else {
-        const errJson = await res.json().catch(() => null);
-        if (errJson && errJson.error) {
-          return errJson;
-        }
-        return this.localTranslationFallback(text, sourceLang, targetLang);
+        const data = await res.json();
+        if (data && data.translated_text) return data;
       }
     } catch (e) {
-      return this.localTranslationFallback(text, sourceLang, targetLang);
+      console.warn('Primary traductor function fetch error:', e);
     }
+
+    // Robust Fallback: call gemini-chat endpoint for translation if primary traductor endpoint returns 404/500/error
+    try {
+      const geminiUrl = `${SUPABASE_URL}/functions/v1/gemini-chat`;
+      const prompt = `Eres un traductor en tiempo real. Traduce la siguiente frase estrictamente de ${sourceLang === 'es' ? 'Español' : 'Inglés'} a ${targetLang === 'es' ? 'Español' : 'Inglés'}. Responde ÚNICAMENTE con el texto traducido final sin comillas, introducciones ni explicaciones.\n\nTexto: "${text}"`;
+
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ prompt })
+      });
+
+      if (res.ok) {
+        const geminiData = await res.json();
+        let translatedText = (geminiData.reply || '').replace(/[*_#`~]/g, '').trim();
+
+        if (translatedText) {
+          let audioBase64 = null;
+          if (voiceId) {
+            try {
+              const vozRes = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({
+                  action: 'text_to_speech',
+                  text: translatedText,
+                  voice_id: voiceId
+                })
+              });
+
+              if (vozRes.ok) {
+                const vozData = await vozRes.json();
+                audioBase64 = vozData.audio_base64 || null;
+              }
+            } catch (vErr) {}
+          }
+
+          return {
+            original_text: text,
+            detected_lang: sourceLang,
+            target_lang: targetLang,
+            translated_text: translatedText,
+            audio_base64: audioBase64
+          };
+        }
+      }
+    } catch (gErr) {
+      console.warn('Gemini translation fallback error:', gErr);
+    }
+
+    return this.localTranslationFallback(text, sourceLang, targetLang);
   }
 
   localTranslationFallback(text, sourceLang, targetLang) {
