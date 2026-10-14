@@ -508,12 +508,27 @@ function initWakeWordListener() {
     }
   };
 
+  let noSpeechAttempts = 0;
+
+  wakeWordRecognition.onerror = (event) => {
+    if (event.error === 'no-speech') {
+      noSpeechAttempts++;
+    } else if (event.error !== 'aborted') {
+      console.warn('Wake word listener error:', event.error);
+    }
+  };
+
   wakeWordRecognition.onend = () => {
     isWakeWordActive = false;
     if (document.visibilityState === 'visible' && !isMainRecording && !isChatRecording && !isSpeakingOrProcessing) {
-      setTimeout(() => startWakeWordListener(), 800);
+      // Backoff delay on mobile to prevent Android system mic start beeps
+      const backoffMs = noSpeechAttempts > 2 ? 6000 : (noSpeechAttempts > 0 ? 3000 : 1200);
+      setTimeout(() => startWakeWordListener(), backoffMs);
     }
   };
+
+  window.addEventListener('touchstart', () => { noSpeechAttempts = 0; }, { passive: true });
+  window.addEventListener('click', () => { noSpeechAttempts = 0; }, { passive: true });
 
   startWakeWordListener();
 }
