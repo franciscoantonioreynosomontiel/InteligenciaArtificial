@@ -730,7 +730,13 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
     lowerUser.includes('reproducir musica') ||
     lowerUser.includes('reproduce musica') ||
     lowerUser.includes('pon una cancion') ||
-    lowerUser.includes('ponme una cancion');
+    lowerUser.includes('ponme una cancion') ||
+    lowerUser.includes('pon algo') ||
+    lowerUser.includes('pone algo') ||
+    lowerUser.includes('pone una cancion') ||
+    lowerUser.includes('pone una canción') ||
+    lowerUser.includes('toca algo') ||
+    lowerUser.includes('reproduce algo');
 
   if (isMusicIntent && !window.location.pathname.endsWith('musica.html')) {
     setTimeout(() => {
@@ -1040,7 +1046,7 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     return 'Para desplegar un proyecto Python en Render, conectas tu repositorio de GitHub, usas "pip install -r requirements.txt" como Build Command y "gunicorn app:app" como Start Command. ¿Qué framework estás utilizando en tu aplicación?';
   }
 
-  if (lower.includes('ponme musica') || lower.includes('quiero escuchar musica') || lower.includes('pon musica') || lower.includes('escuchar musica') || lower.includes('reproducir musica')) {
+  if (lower.includes('ponme musica') || lower.includes('quiero escuchar musica') || lower.includes('pon musica') || lower.includes('escuchar musica') || lower.includes('reproducir musica') || lower.includes('pon algo') || lower.includes('pone algo') || lower.includes('pone una cancion') || lower.includes('toca algo') || lower.includes('reproduce algo')) {
     if (!window.location.pathname.endsWith('musica.html')) {
       setTimeout(() => {
         window.location.href = './musica.html';

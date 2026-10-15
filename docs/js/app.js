@@ -22,6 +22,13 @@ let isSpeakingOrProcessing = false;
 let synth = window.speechSynthesis;
 let currentElevenAudio = null;
 
+// Background Silence/VAD Monitor State
+let micAudioStream = null;
+let audioContext = null;
+let audioAnalyser = null;
+let vadCheckInterval = null;
+const VAD_THRESHOLD = 14;
+
 const ALARMS_STORAGE_KEY = 'ia_agent_alarms_reminders';
 let activeAlarmAudio = null;
 let currentTriggeredAlarm = null;
@@ -433,11 +440,21 @@ function requestPermissions() {
     Notification.requestPermission().catch(() => {});
   }
 
+  // Resume AudioContext on touch/click user gesture
+  const resumeAudioCtx = () => {
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {});
+    }
+  };
+  window.addEventListener('touchstart', resumeAudioCtx, { passive: true });
+  window.addEventListener('click', resumeAudioCtx, { passive: true });
+
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
-        stream.getTracks().forEach((track) => track.stop());
-        console.log('Microphone permission granted on app launch.');
+        micAudioStream = stream;
+        console.log('Microphone permission granted on app launch. Initializing VAD monitor.');
+        setupVadAudioMonitor(stream);
         initWakeWordListener();
       })
       .catch((err) => {
@@ -446,6 +463,40 @@ function requestPermissions() {
       });
   } else {
     initWakeWordListener();
+  }
+}
+
+function setupVadAudioMonitor(stream) {
+  try {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxClass) return;
+    audioContext = new AudioCtxClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 256;
+    source.connect(audioAnalyser);
+
+    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+
+    if (vadCheckInterval) clearInterval(vadCheckInterval);
+    vadCheckInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (isMainRecording || isChatRecording || isSpeakingOrProcessing) return;
+
+      audioAnalyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const averageVolume = sum / dataArray.length;
+
+      // When voice energy is detected, start wake word recognition silently
+      if (averageVolume > VAD_THRESHOLD && !isWakeWordActive) {
+        startWakeWordListener();
+      }
+    }, 150);
+  } catch (e) {
+    console.warn('VAD Audio Monitor error:', e);
   }
 }
 
@@ -508,27 +559,11 @@ function initWakeWordListener() {
     }
   };
 
-  let noSpeechAttempts = 0;
-
-  wakeWordRecognition.onerror = (event) => {
-    if (event.error === 'no-speech') {
-      noSpeechAttempts++;
-    } else if (event.error !== 'aborted') {
-      console.warn('Wake word listener error:', event.error);
-    }
-  };
-
   wakeWordRecognition.onend = () => {
     isWakeWordActive = false;
-    if (document.visibilityState === 'visible' && !isMainRecording && !isChatRecording && !isSpeakingOrProcessing) {
-      // Backoff delay on mobile to prevent Android system mic start beeps
-      const backoffMs = noSpeechAttempts > 2 ? 6000 : (noSpeechAttempts > 0 ? 3000 : 1200);
-      setTimeout(() => startWakeWordListener(), backoffMs);
-    }
+    // Do not continuously restart SpeechRecognition in a loop to eliminate mobile mic system start beeps!
+    // The background VAD monitor will trigger startWakeWordListener() smoothly when speech energy is detected.
   };
-
-  window.addEventListener('touchstart', () => { noSpeechAttempts = 0; }, { passive: true });
-  window.addEventListener('click', () => { noSpeechAttempts = 0; }, { passive: true });
 
   startWakeWordListener();
 }
