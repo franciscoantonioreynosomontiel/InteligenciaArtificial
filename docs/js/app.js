@@ -3,6 +3,13 @@ import { Scene3D } from './three-scene.js';
 import { processGeminiRequest, clearChatHistory } from './gemini.js';
 import { uploadToCloudinary } from './cloudinary.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import {
+  startLocationSharing,
+  stopLocationSharing,
+  isSharingLocationActive,
+  getTrackingLink,
+  fetchTrackedLocation
+} from './ubicacion.js';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
@@ -35,6 +42,11 @@ let currentTriggeredAlarm = null;
 
 let thoughtBubbleTimer = null;
 let thoughtLoadingTimer = null;
+
+// Leaflet tracking map viewer state
+let trackingLeafletMap = null;
+let trackingMapMarker = null;
+let trackingPollInterval = null;
 
 function stopSpeech() {
   if (synth) synth.cancel();
@@ -287,7 +299,7 @@ window.openRuleEditorModal = function(rule, onSaveCallback) {
   modal.classList.add('open');
 };
 
-// Ensure Chatbot UI elements exist on every HTML page
+// Ensure Global Modals & Chatbot UI elements exist on every HTML page
 function ensureGlobalChatbotUI() {
   if (!document.querySelector('.thought-bubble-container')) {
     const thought = document.createElement('div');
@@ -403,6 +415,87 @@ function ensureGlobalChatbotUI() {
     `;
     document.body.appendChild(almModal);
   }
+
+  // Location Share Settings Modal
+  if (!document.getElementById('location-modal')) {
+    const locModal = document.createElement('div');
+    locModal.id = 'location-modal';
+    locModal.className = 'note-modal';
+    locModal.innerHTML = `
+      <div class="note-modal-card" style="max-width: 480px; width: 92vw; padding: 24px;">
+        <div class="modal-header">
+          <h3 style="font-size: 1.15rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
+            Ubicación en Tiempo Real
+          </h3>
+          <button id="btn-close-location-modal" class="btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; margin-top: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 12px 16px; border-radius: 14px; border: 1px solid #e2e8f0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="location-status-badge" class="badge-status inactive">Inactivo</span>
+              <span style="font-size: 0.9rem; font-weight: 600; color: #334155;">Compartir Ubicación</span>
+            </div>
+            <label class="switch-toggle">
+              <input type="checkbox" id="toggle-location-sharing">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div id="location-share-details" style="display: none; flex-direction: column; gap: 12px;">
+            <div class="form-group">
+              <label for="location-link-input">Link para compartir (Válido 24 horas)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="location-link-input" class="form-input" readonly style="font-size: 0.82rem; background: #f1f5f9;">
+                <button id="btn-copy-location-link" class="btn-primary-action" style="width: auto; padding: 8px 16px; white-space: nowrap; margin-top: 0;">Copiar Link</button>
+              </div>
+            </div>
+
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 12px; font-size: 0.85rem; color: #166534; line-height: 1.4;">
+              <strong>Dirección aproximada:</strong> <span id="location-address-preview">Obteniendo coordenadas...</span>
+            </div>
+
+            <div style="font-size: 0.78rem; color: #64748b; background: #f8fafc; padding: 8px 12px; border-radius: 8px;">
+              ⚡ Modo Ahorro de Datos: Actualiza cada 30 segundos consumiendo solo ~100 bytes. Funciona de fondo en tu celular mientras usas la app o la mantienes abierta.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(locModal);
+  }
+
+  // Tracking Viewer Modal
+  if (!document.getElementById('tracking-viewer-modal')) {
+    const trkModal = document.createElement('div');
+    trkModal.id = 'tracking-viewer-modal';
+    trkModal.className = 'note-modal';
+    trkModal.innerHTML = `
+      <div class="note-modal-card" style="max-width: 540px; width: 92vw; padding: 20px;">
+        <div class="modal-header">
+          <h3 style="font-size: 1.1rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
+            Ubicación en Tiempo Real
+          </h3>
+          <button id="btn-close-tracking-modal" class="btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+          <div id="tracking-status-banner" style="font-size: 0.82rem; padding: 8px 12px; border-radius: 10px; background: #e0f2fe; color: #0369a1; font-weight: 600;">
+            Cargando ubicación del dispositivo...
+          </div>
+
+          <div id="tracking-map-container" style="width: 100%; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cbd5e1; background: #f1f5f9; position: relative;">
+            <div id="tracking-map" style="width: 100%; height: 100%;"></div>
+          </div>
+
+          <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 12px; border-radius: 12px; font-size: 0.88rem; color: #2e1065;">
+            <div style="font-weight: 700; margin-bottom: 4px;" id="tracking-address-title">Dirección:</div>
+            <div id="tracking-address-text" style="line-height: 1.4; color: #475569;">Consultando dirección...</div>
+            <div style="margin-top: 8px; font-size: 0.78rem; color: #7e22ce;" id="tracking-updated-time">Última actualización: --</div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(trkModal);
+  }
 }
 
 function restoreChatSession() {
@@ -429,11 +522,134 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreChatSession();
   requestPermissions();
   initAlarmExecutionEngine();
+  checkUrlForTrackingParam();
 
   if (document.getElementById('bot-model-viewer')) {
     showThoughtBubble('¡Hola! ¿En qué te puedo ayudar hoy?', 3000);
   }
 });
+
+function checkUrlForTrackingParam() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('track')) {
+    const trackDeviceId = urlParams.get('track');
+    if (trackDeviceId) {
+      openTrackingViewerModal(trackDeviceId);
+    }
+  }
+}
+
+function openLocationShareModal() {
+  const modal = document.getElementById('location-modal');
+  if (!modal) return;
+
+  const toggle = document.getElementById('toggle-location-sharing');
+  const detailsBox = document.getElementById('location-share-details');
+  const badge = document.getElementById('location-status-badge');
+  const linkInput = document.getElementById('location-link-input');
+  const btnShareNav = document.getElementById('btn-location-share');
+
+  const isActive = isSharingLocationActive();
+  if (toggle) toggle.checked = isActive;
+
+  if (linkInput) linkInput.value = getTrackingLink();
+
+  if (isActive) {
+    if (badge) {
+      badge.textContent = 'COMPARTIENDO';
+      badge.className = 'badge-status active';
+    }
+    if (detailsBox) detailsBox.style.display = 'flex';
+    if (btnShareNav) btnShareNav.classList.add('active');
+  } else {
+    if (badge) {
+      badge.textContent = 'INACTIVO';
+      badge.className = 'badge-status inactive';
+    }
+    if (detailsBox) detailsBox.style.display = 'none';
+    if (btnShareNav) btnShareNav.classList.remove('active');
+  }
+
+  modal.classList.add('open');
+}
+
+async function openTrackingViewerModal(deviceId) {
+  const modal = document.getElementById('tracking-viewer-modal');
+  if (!modal) return;
+
+  modal.classList.add('open');
+
+  await updateTrackingViewerData(deviceId);
+
+  if (trackingPollInterval) clearInterval(trackingPollInterval);
+  trackingPollInterval = setInterval(() => {
+    updateTrackingViewerData(deviceId);
+  }, 25000);
+}
+
+async function updateTrackingViewerData(deviceId) {
+  const banner = document.getElementById('tracking-status-banner');
+  const addressText = document.getElementById('tracking-address-text');
+  const updatedTime = document.getElementById('tracking-updated-time');
+
+  const res = await fetchTrackedLocation(deviceId);
+
+  if (!res.found) {
+    if (banner) {
+      banner.style.background = '#fee2e2';
+      banner.style.color = '#b91c1c';
+      banner.textContent = res.error || 'No se pudo obtener la ubicación.';
+    }
+    return;
+  }
+
+  if (res.isExpired) {
+    if (banner) {
+      banner.style.background = '#fef3c7';
+      banner.style.color = '#92400e';
+      banner.textContent = 'Enlace de ubicación expirado (más de 24 horas de antigüedad).';
+    }
+  } else {
+    if (banner) {
+      banner.style.background = '#dcfce7';
+      banner.style.color = '#15803d';
+      banner.textContent = 'En vivo: Rastreo activo en tiempo real.';
+    }
+  }
+
+  if (addressText) addressText.textContent = res.address;
+  if (updatedTime) updatedTime.textContent = `Última actualización: ${res.timeAgoStr}`;
+
+  // Render or update Leaflet Interactive Map
+  if (typeof L !== 'undefined' && res.latitude && res.longitude) {
+    setTimeout(() => {
+      const lat = res.latitude;
+      const lon = res.longitude;
+
+      if (!trackingLeafletMap) {
+        const mapElem = document.getElementById('tracking-map');
+        if (mapElem) {
+          trackingLeafletMap = L.map('tracking-map').setView([lat, lon], 16);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+          }).addTo(trackingLeafletMap);
+
+          trackingMapMarker = L.marker([lat, lon]).addTo(trackingLeafletMap);
+          trackingMapMarker.bindPopup('Ubicación compartida').openPopup();
+        }
+      } else {
+        trackingLeafletMap.setView([lat, lon], 16);
+        if (trackingMapMarker) {
+          trackingMapMarker.setLatLng([lat, lon]);
+        } else {
+          trackingMapMarker = L.marker([lat, lon]).addTo(trackingLeafletMap);
+        }
+        trackingLeafletMap.invalidateSize();
+      }
+    }, 200);
+  }
+}
 
 function requestPermissions() {
   if ('Notification' in window && Notification.permission === 'default') {
@@ -751,6 +967,88 @@ function stopRecording() {
 }
 
 function setupEventListeners() {
+  const btnLocationShare = document.getElementById('btn-location-share');
+  if (btnLocationShare) {
+    btnLocationShare.addEventListener('click', () => {
+      openLocationShareModal();
+    });
+  }
+
+  const btnCloseLocModal = document.getElementById('btn-close-location-modal');
+  if (btnCloseLocModal) {
+    btnCloseLocModal.addEventListener('click', () => {
+      document.getElementById('location-modal')?.classList.remove('open');
+    });
+  }
+
+  const toggleLocSharing = document.getElementById('toggle-location-sharing');
+  if (toggleLocSharing) {
+    toggleLocSharing.addEventListener('change', async (e) => {
+      const detailsBox = document.getElementById('location-share-details');
+      const badge = document.getElementById('location-status-badge');
+      const addressPreview = document.getElementById('location-address-preview');
+      const btnShareNav = document.getElementById('btn-location-share');
+
+      if (e.target.checked) {
+        showToast('Activando GPS y compartiendo ubicación...');
+        try {
+          const data = await startLocationSharing((updatedData) => {
+            if (addressPreview && updatedData) {
+              addressPreview.textContent = updatedData.address;
+            }
+          });
+          if (badge) {
+            badge.textContent = 'COMPARTIENDO';
+            badge.className = 'badge-status active';
+          }
+          if (detailsBox) detailsBox.style.display = 'flex';
+          if (addressPreview && data) addressPreview.textContent = data.address;
+          if (btnShareNav) btnShareNav.classList.add('active');
+          showToast('Ubicación en tiempo real activa');
+        } catch (err) {
+          e.target.checked = false;
+          showToast('No se pudo obtener la ubicación GPS.');
+        }
+      } else {
+        stopLocationSharing();
+        if (badge) {
+          badge.textContent = 'INACTIVO';
+          badge.className = 'badge-status inactive';
+        }
+        if (detailsBox) detailsBox.style.display = 'none';
+        if (btnShareNav) btnShareNav.classList.remove('active');
+        showToast('Ubicación en tiempo real desactivada');
+      }
+    });
+  }
+
+  const btnCopyLocLink = document.getElementById('btn-copy-location-link');
+  if (btnCopyLocLink) {
+    btnCopyLocLink.addEventListener('click', () => {
+      const linkInput = document.getElementById('location-link-input');
+      if (linkInput && linkInput.value) {
+        navigator.clipboard.writeText(linkInput.value).then(() => {
+          showToast('Link de ubicación copiado');
+        }).catch(() => {
+          linkInput.select();
+          document.execCommand('copy');
+          showToast('Link de ubicación copiado');
+        });
+      }
+    });
+  }
+
+  const btnCloseTrackModal = document.getElementById('btn-close-tracking-modal');
+  if (btnCloseTrackModal) {
+    btnCloseTrackModal.addEventListener('click', () => {
+      document.getElementById('tracking-viewer-modal')?.classList.remove('open');
+      if (trackingPollInterval) {
+        clearInterval(trackingPollInterval);
+        trackingPollInterval = null;
+      }
+    });
+  }
+
   const btnClearChat = document.getElementById('btn-clear-chat');
   if (btnClearChat) {
     btnClearChat.addEventListener('click', () => {
