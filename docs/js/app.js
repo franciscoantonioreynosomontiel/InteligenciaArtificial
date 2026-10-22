@@ -669,7 +669,7 @@ function requestPermissions() {
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
-        micAudioStream = stream;
+        stream.getTracks().forEach((track) => track.stop());
         console.log('Microphone permission granted on launch.');
       })
       .catch((err) => {
@@ -872,7 +872,19 @@ function setupSpeechRecognition() {
     handleUserInput(transcript, true, source === 'chat');
   };
 
-  recognition.onerror = () => stopRecording();
+  recognition.onerror = (event) => {
+    console.warn('Speech recognition error:', event?.error);
+    stopRecording();
+    if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+      showToast('Permiso de micrófono no otorgado');
+    } else if (event?.error === 'no-speech') {
+      showToast('No se detectó voz. Intenta nuevamente.');
+    } else if (event?.error === 'audio-capture') {
+      showToast('Micrófono no disponible o en uso');
+    } else if (event?.error === 'network') {
+      showToast('Error de red al procesar voz');
+    }
+  };
   recognition.onend = () => stopRecording();
 }
 
