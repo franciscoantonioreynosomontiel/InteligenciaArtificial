@@ -637,6 +637,7 @@ async function updateTrackingViewerData(deviceId) {
 
           trackingMapMarker = L.marker([lat, lon]).addTo(trackingLeafletMap);
           trackingMapMarker.bindPopup('Ubicación compartida').openPopup();
+          setTimeout(() => trackingLeafletMap.invalidateSize(), 100);
         }
       } else {
         trackingLeafletMap.setView([lat, lon], 16);
@@ -669,129 +670,16 @@ function requestPermissions() {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
         micAudioStream = stream;
-        console.log('Microphone permission granted on app launch. Initializing VAD monitor.');
-        setupVadAudioMonitor(stream);
-        initWakeWordListener();
+        console.log('Microphone permission granted on launch.');
       })
       .catch((err) => {
         console.warn('Microphone permission request error or denied:', err);
-        initWakeWordListener();
       });
-  } else {
-    initWakeWordListener();
   }
-}
-
-function setupVadAudioMonitor(stream) {
-  try {
-    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtxClass) return;
-    audioContext = new AudioCtxClass();
-    const source = audioContext.createMediaStreamSource(stream);
-    audioAnalyser = audioContext.createAnalyser();
-    audioAnalyser.fftSize = 256;
-    source.connect(audioAnalyser);
-
-    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-
-    if (vadCheckInterval) clearInterval(vadCheckInterval);
-    vadCheckInterval = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      if (isMainRecording || isChatRecording || isSpeakingOrProcessing) return;
-
-      audioAnalyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const averageVolume = sum / dataArray.length;
-
-      // When voice energy is detected, start wake word recognition silently
-      if (averageVolume > VAD_THRESHOLD && !isWakeWordActive) {
-        startWakeWordListener();
-      }
-    }, 150);
-  } catch (e) {
-    console.warn('VAD Audio Monitor error:', e);
-  }
-}
-
-function initWakeWordListener() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return;
-
-  if (wakeWordRecognition) {
-    try { wakeWordRecognition.stop(); } catch (e) {}
-  }
-
-  wakeWordRecognition = new SpeechRecognition();
-  wakeWordRecognition.lang = 'es-ES';
-  wakeWordRecognition.continuous = true;
-  wakeWordRecognition.interimResults = true;
-
-  wakeWordRecognition.onstart = () => {
-    isWakeWordActive = true;
-    console.log('Wake Word Listener Active ("Hey Toto")...');
-  };
-
-  wakeWordRecognition.onresult = (event) => {
-    if (isMainRecording || isChatRecording || isSpeakingOrProcessing) return;
-
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-      const transcript = event.results[i][0].transcript.toLowerCase().trim();
-
-      const wakeMatch = transcript.match(/\b(hey toto|oye toto|hola toto|ok toto|\btoto\b)\b/i);
-
-      if (wakeMatch) {
-        console.log('Wake word detected:', transcript);
-
-        stopWakeWordListener();
-
-        const matchedStr = wakeMatch[0];
-        const wakeIdx = transcript.indexOf(matchedStr);
-        const commandAfter = transcript.substring(wakeIdx + matchedStr.length).replace(/^[,\.\s]+/, '').trim();
-
-        showThoughtBubble('¡Te escucho! ¿En qué te ayudo?', 3000);
-
-        if (commandAfter && commandAfter.length > 2) {
-          handleUserInput(commandAfter, true, false);
-        } else {
-          if (mainSpeechEnabled) {
-            speakResponse('¡Dime! Te escucho.', true).then(() => {
-              startMainMicRecording();
-            });
-          } else {
-            startMainMicRecording();
-          }
-        }
-        break;
-      }
-    }
-  };
-
-  wakeWordRecognition.onerror = (event) => {
-    if (event.error !== 'aborted' && event.error !== 'no-speech') {
-      console.warn('Wake word listener error:', event.error);
-    }
-  };
-
-  wakeWordRecognition.onend = () => {
-    isWakeWordActive = false;
-    // Do not continuously restart SpeechRecognition in a loop to eliminate mobile mic system start beeps!
-    // The background VAD monitor will trigger startWakeWordListener() smoothly when speech energy is detected.
-  };
-
-  startWakeWordListener();
 }
 
 function startWakeWordListener() {
-  if (wakeWordRecognition && !isWakeWordActive && !isMainRecording && !isChatRecording && !isSpeakingOrProcessing) {
-    if (document.visibilityState === 'visible') {
-      try {
-        wakeWordRecognition.start();
-      } catch (e) {}
-    }
-  }
+  // Silent placeholder - no continuous background polling loop to avoid mic beep chime ("pitillo")
 }
 
 function stopWakeWordListener() {
@@ -903,6 +791,34 @@ function removeChatLoading(loadingElem) {
   if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
 }
 
+function triggerMainMic() {
+  const chatDrawer = document.getElementById('chat-drawer');
+  if (chatDrawer && chatDrawer.classList.contains('open')) {
+    showToast('Cierra el chat para usar el micrófono principal.');
+    return;
+  }
+  if (!recognition) {
+    showToast('El reconocimiento de voz no está soportado.');
+    return;
+  }
+  stopSpeech();
+  stopWakeWordListener();
+  if (isMainRecording || isChatRecording) {
+    try { recognition.stop(); } catch(e) {}
+    stopRecording();
+  } else {
+    activeRecordingSource = 'main';
+    try {
+      recognition.start();
+    } catch (e) {
+      try { recognition.stop(); } catch(err) {}
+      setTimeout(() => {
+        try { recognition.start(); } catch(err2) {}
+      }, 150);
+    }
+  }
+}
+
 function setup3DViewer() {
   const modelViewer = document.getElementById('bot-model-viewer');
   if (modelViewer) {
@@ -910,6 +826,8 @@ function setup3DViewer() {
       if (currentTriggeredAlarm) {
         const actions = currentTriggeredAlarm.stopActions || ['button'];
         if (actions.includes('touch')) stopActiveAlarm();
+      } else {
+        triggerMainMic();
       }
     });
     modelViewer.addEventListener('error', () => {
@@ -917,6 +835,10 @@ function setup3DViewer() {
       scene3D = new Scene3D('canvas-container');
     });
   } else if (document.getElementById('canvas-container')) {
+    const fallbackCanvas = document.getElementById('canvas-container');
+    if (fallbackCanvas) {
+      fallbackCanvas.addEventListener('click', () => triggerMainMic());
+    }
     scene3D = new Scene3D('canvas-container');
   }
 }
@@ -1089,20 +1011,7 @@ function setupEventListeners() {
   const btnMic = document.getElementById('btn-mic');
   if (btnMic) {
     btnMic.addEventListener('click', () => {
-      const chatDrawer = document.getElementById('chat-drawer');
-      if (chatDrawer && chatDrawer.classList.contains('open')) {
-        showToast('Cierra el chat para usar el micrófono principal.');
-        return;
-      }
-      if (!recognition) {
-        showToast('El reconocimiento de voz no está soportado.');
-        return;
-      }
-      if (isMainRecording || isChatRecording) recognition.stop();
-      else {
-        activeRecordingSource = 'main';
-        recognition.start();
-      }
+      triggerMainMic();
     });
   }
 
@@ -1113,10 +1022,21 @@ function setupEventListeners() {
         showToast('El reconocimiento de voz no está soportado.');
         return;
       }
-      if (isMainRecording || isChatRecording) recognition.stop();
-      else {
+      stopSpeech();
+      stopWakeWordListener();
+      if (isMainRecording || isChatRecording) {
+        try { recognition.stop(); } catch(e) {}
+        stopRecording();
+      } else {
         activeRecordingSource = 'chat';
-        recognition.start();
+        try {
+          recognition.start();
+        } catch (e) {
+          try { recognition.stop(); } catch(err) {}
+          setTimeout(() => {
+            try { recognition.start(); } catch(err2) {}
+          }, 150);
+        }
       }
     });
   }
@@ -1622,7 +1542,34 @@ function speakResponse(text, isVoiceBubble = false) {
       if (raw) voiceSettings = JSON.parse(raw);
     } catch (e) {}
 
-    const voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
+    let voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
+
+    if (!voiceId) {
+      try {
+        const fetchVoicesRes = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ action: 'get_voices' })
+        });
+        if (fetchVoicesRes.ok) {
+          const vData = await fetchVoicesRes.json();
+          if (vData.voices && vData.voices.length > 0) {
+            voiceId = vData.voices[0].voice_id;
+            const newSettings = {
+              enabled: true,
+              voice_id: voiceId,
+              voice_id_es: voiceId,
+              voice_name: vData.voices[0].name || 'ElevenLabs Voice',
+              updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem('ia_agent_voice_settings', JSON.stringify(newSettings));
+          }
+        }
+      } catch (e) {}
+    }
 
     if (!voiceId) return resolve();
 
