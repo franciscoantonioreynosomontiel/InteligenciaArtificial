@@ -42,14 +42,22 @@ export async function reverseGeocode(lat, lon) {
 }
 
 export async function getCurrentPositionAsync() {
+  if (!('geolocation' in navigator)) {
+    throw new Error('La geolocalización no está soportada en este dispositivo.');
+  }
+
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      return reject(new Error('La geolocalización no está soportada en este dispositivo.'));
-    }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve(pos.coords),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      (err) => {
+        console.warn('High accuracy geolocation failed/timed out, attempting low accuracy fallback...', err);
+        navigator.geolocation.getCurrentPosition(
+          (posLow) => resolve(posLow.coords),
+          (errLow) => reject(errLow),
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   });
 }
@@ -179,6 +187,9 @@ export async function fetchTrackedLocation(targetDeviceId) {
 export async function compartirUbicacion() {
   try {
     const data = await startLocationSharing();
+    if (!data || typeof data.latitude !== 'number' || typeof data.longitude !== 'number') {
+      return 'No se pudo obtener la posición GPS en este momento. Por favor, asegúrate de activar la ubicación/GPS en tu celular y permitir los permisos en el navegador.';
+    }
     const link = getTrackingLink();
     const mapsUrl = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
     return `Tu ubicación en tiempo real se está compartiendo.\nLink de consulta (válido por 24 horas): ${link}\nGoogle Maps: ${mapsUrl}\nDirección aproximada: ${data.address}`;

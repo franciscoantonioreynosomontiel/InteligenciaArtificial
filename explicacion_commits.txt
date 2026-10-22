@@ -1,0 +1,2 @@
+Los últimos commits cambiaron la configuración de Gemini y las llamadas a la API sin actualizar las funciones de Supabase ni del cliente.
+Esto provocó fallos de permisos en la base de datos y bloqueos en el micrófono y la geolocalización, pero todo ha sido corregido por completo.

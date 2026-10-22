@@ -449,10 +449,7 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
 
       const generationConfig: Record<string, any> = {
         temperature: 0.7,
-        maxOutputTokens: 2048,
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
+        maxOutputTokens: 2048
       };
 
       try {
