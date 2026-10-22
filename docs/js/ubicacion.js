@@ -60,20 +60,28 @@ export async function updateLocationInSupabase() {
     const lat = coords.latitude;
     const lon = coords.longitude;
     const deviceId = getDeviceId();
-    const address = await reverseGeocode(lat, lon);
     const nowIso = new Date().toISOString();
+    const initialAddr = `Latitud ${lat.toFixed(5)}, Longitud ${lon.toFixed(5)}`;
 
+    // 1. Upsert immediately so record exists without waiting for geocoder
     const { error } = await supabase.from('locations').upsert([{
       device_id: deviceId,
       latitude: lat,
       longitude: lon,
-      address: address,
+      address: initialAddr,
       updated_at: nowIso
     }], { onConflict: 'device_id' });
 
-    if (error) console.warn('Supabase location sync error:', error);
+    if (error) console.warn('Supabase location initial sync error:', error);
 
-    return { latitude: lat, longitude: lon, address, updated_at: nowIso };
+    // 2. Resolve reverse geocode asynchronously and update address
+    reverseGeocode(lat, lon).then(async (resolvedAddr) => {
+      if (resolvedAddr && resolvedAddr !== initialAddr) {
+        await supabase.from('locations').update({ address: resolvedAddr }).eq('device_id', deviceId);
+      }
+    }).catch(() => {});
+
+    return { latitude: lat, longitude: lon, address: initialAddr, updated_at: nowIso };
   } catch (err) {
     console.error('Error al actualizar posición GPS:', err);
     throw err;
@@ -118,18 +126,18 @@ export function stopLocationSharing() {
   }
 }
 
-// Auto-resume background sharing if user re-opens PWA while sharing was active
-if (isSharingLocationActive()) {
-  startLocationSharing();
-}
-
 export async function fetchTrackedLocation(targetDeviceId) {
   try {
+    const cleanId = (targetDeviceId || '').trim();
+    if (!cleanId) {
+      return { found: false, error: 'ID de dispositivo no válido.' };
+    }
+
     const { data, error } = await supabase
       .from('locations')
       .select('*')
-      .eq('device_id', targetDeviceId)
-      .single();
+      .eq('device_id', cleanId)
+      .maybeSingle();
 
     if (error || !data) {
       return { found: false, error: 'No se encontró información de ubicación para este dispositivo.' };

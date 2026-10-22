@@ -157,8 +157,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 document.addEventListener('DOMContentLoaded', () => {
   setup3DViewer();
   setupSpeechRecognition();
-  initMusicMicPermissionsAndVAD();
-  initMusicWakeWordListener();
+  initMusicMicPermissions();
   setupAudioPlayerEvents();
   setupUIEventListeners();
   setupModalEventListeners();
@@ -167,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchCloudinaryTracksFromEdge();
 });
 
-function initMusicMicPermissionsAndVAD() {
+function initMusicMicPermissions() {
   const resumeAudioCtx = () => {
     if (audioContext && audioContext.state === 'suspended') {
       audioContext.resume().catch(() => {});
@@ -180,115 +179,13 @@ function initMusicMicPermissionsAndVAD() {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
         micAudioStream = stream;
-        setupMusicVadMonitor(stream);
       })
-      .catch((e) => console.warn('Mic permission or VAD error in music page:', e));
+      .catch((e) => console.warn('Mic permission error in music page:', e));
   }
-}
-
-function setupMusicVadMonitor(stream) {
-  try {
-    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtxClass) return;
-    audioContext = new AudioCtxClass();
-    const source = audioContext.createMediaStreamSource(stream);
-    audioAnalyser = audioContext.createAnalyser();
-    audioAnalyser.fftSize = 256;
-    source.connect(audioAnalyser);
-
-    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-
-    if (vadCheckInterval) clearInterval(vadCheckInterval);
-    vadCheckInterval = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      if (isListeningGLTF || isProcessingCommand) return;
-
-      audioAnalyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const averageVolume = sum / dataArray.length;
-
-      if (averageVolume > VAD_THRESHOLD && !isWakeWordActive) {
-        startMusicWakeWord();
-      }
-    }, 150);
-  } catch (e) {
-    console.warn('Music VAD Monitor error:', e);
-  }
-}
-
-function initMusicWakeWordListener() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return;
-
-  if (wakeWordRecognition) {
-    try { wakeWordRecognition.stop(); } catch (e) {}
-  }
-
-  wakeWordRecognition = new SpeechRecognition();
-  wakeWordRecognition.lang = 'es-ES';
-  wakeWordRecognition.continuous = true;
-  wakeWordRecognition.interimResults = true;
-
-  wakeWordRecognition.onstart = () => {
-    isWakeWordActive = true;
-  };
-
-  wakeWordRecognition.onresult = (event) => {
-    if (isListeningGLTF || isProcessingCommand) return;
-
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-      const transcript = event.results[i][0].transcript.toLowerCase().trim();
-
-      const wakeMatch = transcript.match(/\b(hey toto|oye toto|hola toto|ok toto|\btoto\b)\b/i);
-
-      if (wakeMatch) {
-        console.log('Music Wake Word detected:', transcript);
-
-        stopMusicWakeWord();
-
-        const matchedStr = wakeMatch[0];
-        const wakeIdx = transcript.indexOf(matchedStr);
-        const commandAfter = transcript.substring(wakeIdx + matchedStr.length).replace(/^[,\.\s]+/, '').trim();
-
-        showThoughtBubble('¡Te escucho! Pídeme una canción o controla la música.');
-
-        if (commandAfter && commandAfter.length > 2) {
-          handleMusicVoiceCommand(commandAfter);
-        } else {
-          try {
-            recognition.start();
-          } catch(e) {}
-        }
-        break;
-      }
-    }
-  };
-
-  wakeWordRecognition.onerror = (event) => {
-    if (event.error !== 'aborted' && event.error !== 'no-speech') {
-      console.warn('Music wake word listener error:', event.error);
-    }
-  };
-
-  wakeWordRecognition.onend = () => {
-    isWakeWordActive = false;
-    // Eliminating continuous wakeWordRecognition start loop prevents system start beeping
-  };
-
-  startMusicWakeWord();
 }
 
 function startMusicWakeWord() {
-  if (wakeWordRecognition && !isWakeWordActive && !isListeningGLTF && !isProcessingCommand) {
-    if (document.visibilityState === 'visible') {
-      try {
-        wakeWordRecognition.start();
-      } catch (e) {}
-    }
-  }
+  // Silent placeholder - no continuous background polling loop to avoid mic beep chime ("pitillo")
 }
 
 function stopMusicWakeWord() {
@@ -1443,7 +1340,35 @@ async function speakResponse(text) {
     if (raw) voiceSettings = JSON.parse(raw);
   } catch (e) {}
 
-  const voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
+  let voiceId = (voiceSettings && (voiceSettings.voice_id_es || voiceSettings.voice_id)) || '';
+
+  if (!voiceId) {
+    try {
+      const fetchVoicesRes = await fetch(`${SUPABASE_URL}/functions/v1/voz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ action: 'get_voices' })
+      });
+      if (fetchVoicesRes.ok) {
+        const vData = await fetchVoicesRes.json();
+        if (vData.voices && vData.voices.length > 0) {
+          voiceId = vData.voices[0].voice_id;
+          const newSettings = {
+            enabled: true,
+            voice_id: voiceId,
+            voice_id_es: voiceId,
+            voice_name: vData.voices[0].name || 'ElevenLabs Voice',
+            updatedAt: new Date().toISOString()
+          };
+          localStorage.setItem('ia_agent_voice_settings', JSON.stringify(newSettings));
+        }
+      }
+    } catch (e) {}
+  }
+
   if (!voiceId) return;
 
   try {
