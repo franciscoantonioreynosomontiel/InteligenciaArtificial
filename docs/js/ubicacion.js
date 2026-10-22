@@ -5,7 +5,11 @@ const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function getDeviceId() {
+const SHARING_ACTIVE_KEY = 'ia_agent_location_sharing_active';
+const SHARING_START_KEY = 'ia_agent_location_sharing_start';
+let locationUpdateInterval = null;
+
+export function getDeviceId() {
   let devId = localStorage.getItem('ia_agent_device_id');
   if (!devId) {
     devId = 'dispositivo_' + Math.random().toString(36).substring(2, 9);
@@ -14,7 +18,17 @@ function getDeviceId() {
   return devId;
 }
 
-async function reverseGeocode(lat, lon) {
+export function getTrackingLink() {
+  const devId = getDeviceId();
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}?track=${devId}`;
+}
+
+export function isSharingLocationActive() {
+  return localStorage.getItem(SHARING_ACTIVE_KEY) === 'true';
+}
+
+export async function reverseGeocode(lat, lon) {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
       headers: { 'Accept-Language': 'es' }
@@ -40,28 +54,126 @@ export async function getCurrentPositionAsync() {
   });
 }
 
-export async function compartirUbicacion() {
+export async function updateLocationInSupabase() {
   try {
     const coords = await getCurrentPositionAsync();
     const lat = coords.latitude;
     const lon = coords.longitude;
     const deviceId = getDeviceId();
     const address = await reverseGeocode(lat, lon);
+    const nowIso = new Date().toISOString();
 
+    const { error } = await supabase.from('locations').upsert([{
+      device_id: deviceId,
+      latitude: lat,
+      longitude: lon,
+      address: address,
+      updated_at: nowIso
+    }], { onConflict: 'device_id' });
+
+    if (error) console.warn('Supabase location sync error:', error);
+
+    return { latitude: lat, longitude: lon, address, updated_at: nowIso };
+  } catch (err) {
+    console.error('Error al actualizar posición GPS:', err);
+    throw err;
+  }
+}
+
+export async function startLocationSharing(onUpdateCallback = null) {
+  localStorage.setItem(SHARING_ACTIVE_KEY, 'true');
+  if (!localStorage.getItem(SHARING_START_KEY)) {
+    localStorage.setItem(SHARING_START_KEY, new Date().toISOString());
+  }
+
+  // Immediate push
+  let lastData = null;
+  try {
+    lastData = await updateLocationInSupabase();
+    if (onUpdateCallback) onUpdateCallback(lastData);
+  } catch (e) {}
+
+  // Low data periodic background update (Every 30 seconds = minimal network data usage)
+  if (locationUpdateInterval) clearInterval(locationUpdateInterval);
+  locationUpdateInterval = setInterval(async () => {
+    if (!isSharingLocationActive()) {
+      stopLocationSharing();
+      return;
+    }
     try {
-      await supabase.from('locations').upsert([{
-        device_id: deviceId,
-        latitude: lat,
-        longitude: lon,
-        address: address,
-        updated_at: new Date().toISOString()
-      }], { onConflict: 'device_id' });
-    } catch (e) {
-      console.warn('Error syncing location to Supabase:', e);
+      const data = await updateLocationInSupabase();
+      if (onUpdateCallback) onUpdateCallback(data);
+    } catch (e) {}
+  }, 30000);
+
+  return lastData;
+}
+
+export function stopLocationSharing() {
+  localStorage.setItem(SHARING_ACTIVE_KEY, 'false');
+  localStorage.removeItem(SHARING_START_KEY);
+  if (locationUpdateInterval) {
+    clearInterval(locationUpdateInterval);
+    locationUpdateInterval = null;
+  }
+}
+
+// Auto-resume background sharing if user re-opens PWA while sharing was active
+if (isSharingLocationActive()) {
+  startLocationSharing();
+}
+
+export async function fetchTrackedLocation(targetDeviceId) {
+  try {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('*')
+      .eq('device_id', targetDeviceId)
+      .single();
+
+    if (error || !data) {
+      return { found: false, error: 'No se encontró información de ubicación para este dispositivo.' };
     }
 
-    const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-    return `Aquí tienes tu ubicación actual en tiempo real: ${mapsUrl}\nDirección aproximada: ${address}`;
+    const updatedAt = new Date(data.updated_at || Date.now());
+    const now = new Date();
+    const diffMs = now.getTime() - updatedAt.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    // Link validity check (24 hours max)
+    const isExpired = diffHours > 24;
+
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    let timeAgoStr = 'Hace un momento';
+    if (diffMins >= 60) {
+      const hrs = Math.floor(diffMins / 60);
+      timeAgoStr = `Hace ${hrs} hora${hrs > 1 ? 's' : ''}`;
+    } else if (diffMins > 0) {
+      timeAgoStr = `Hace ${diffMins} min`;
+    }
+
+    return {
+      found: true,
+      deviceId: data.device_id,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      address: data.address || `Latitud ${data.latitude.toFixed(5)}, Longitud ${data.longitude.toFixed(5)}`,
+      updatedAt: data.updated_at,
+      timeAgoStr,
+      isExpired
+    };
+  } catch (err) {
+    console.error('Error al consultar ubicación rastreada:', err);
+    return { found: false, error: 'Error al consultar la ubicación en tiempo real.' };
+  }
+}
+
+export async function compartirUbicacion() {
+  try {
+    const data = await startLocationSharing();
+    const link = getTrackingLink();
+    const mapsUrl = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
+    return `Tu ubicación en tiempo real se está compartiendo.\nLink de consulta (válido por 24 horas): ${link}\nGoogle Maps: ${mapsUrl}\nDirección aproximada: ${data.address}`;
   } catch (err) {
     console.error('Error al obtener la ubicación:', err);
     return 'No se pudo obtener tu ubicación actual. Por favor, asegúrate de activar el GPS y permitir los permisos de ubicación en tu navegador.';

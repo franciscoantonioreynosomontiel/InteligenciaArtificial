@@ -13,6 +13,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/styles.css">
 
+  <!-- Leaflet CSS & JS for lightweight, data-efficient live map tracking -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
   <script type="importmap">
     {
       "imports": {
@@ -53,7 +57,12 @@
 
     <!-- Top Navigation Header Bar -->
     <header class="top-bar">
-      <div></div> <!-- Spacer -->
+      <div class="top-actions-left" style="pointer-events: auto;">
+        <!-- Location Sharing Button (Left side of top bar) -->
+        <button id="btn-location-share" class="btn-icon" title="Ubicación en tiempo real" aria-label="Ubicación">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        </button>
+      </div>
 
       <div class="top-actions">
         <!-- Audio Speech Toggle -->
