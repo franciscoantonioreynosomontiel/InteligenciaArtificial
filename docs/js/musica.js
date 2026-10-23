@@ -859,7 +859,7 @@ function setupModalEventListeners() {
           const titleElem = document.getElementById('track-title');
           const artistElem = document.getElementById('track-artist');
           if (titleElem) titleElem.innerText = 'Selecciona una canción';
-          if (artistElem) artistElem.innerText = 'Biblioteca Amigo';
+          if (artistElem) artistElem.innerText = 'Biblioteca Toto';
         } else {
           if (currentTrackIndex >= MUSIC_LIBRARY.length) {
             currentTrackIndex = MUSIC_LIBRARY.length - 1;
