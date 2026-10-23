@@ -8,6 +8,8 @@ export class RealtimeTranslator {
     this.isActive = false;
     this.currentMode = null; // 'hablar' (es -> en) or 'escuchar' (en -> es)
     this.recognition = null;
+    this.mediaStream = null;
+    this.audioContext = null;
     this.synth = window.speechSynthesis;
     this.btnHablar = null;
     this.btnEscuchar = null;
@@ -16,6 +18,8 @@ export class RealtimeTranslator {
     this.translatorLog = null;
     this.currentAudio = null;
     this.isProcessing = false;
+    this.audioQueue = [];
+    this.isPlayingQueue = false;
   }
 
   init() {
@@ -91,7 +95,35 @@ export class RealtimeTranslator {
     }
   }
 
-  startMode(mode) {
+  async requestMicAccess() {
+    try {
+      if (!this.mediaStream || !this.mediaStream.active) {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      }
+      if (!this.audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          this.audioContext = new AudioContextClass();
+        }
+      }
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      return true;
+    } catch (err) {
+      console.warn('Microphone access request error:', err);
+      this.addLogMessage('error', 'Permiso de micrófono no concedido o no disponible.');
+      return false;
+    }
+  }
+
+  async startMode(mode) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       this.showToast('El reconocimiento de voz no está soportado en este navegador.');
@@ -99,6 +131,12 @@ export class RealtimeTranslator {
     }
 
     this.stopTranslation();
+
+    const micOk = await this.requestMicAccess();
+    if (!micOk) {
+      this.updateStatus('Error de micrófono', 'stopped');
+      return;
+    }
 
     this.isActive = true;
     this.currentMode = mode;
@@ -108,11 +146,11 @@ export class RealtimeTranslator {
 
     if (mode === 'hablar') {
       if (this.btnHablar) this.btnHablar.classList.add('active');
-      this.recognition.lang = 'es-ES';
+      if (this.recognition) this.recognition.lang = 'es-ES';
       this.addLogMessage('system', 'Modo "Hablar" activo (Español -> Inglés).');
     } else {
       if (this.btnEscuchar) this.btnEscuchar.classList.add('active');
-      this.recognition.lang = 'en-US';
+      if (this.recognition) this.recognition.lang = 'en-US';
       this.addLogMessage('system', 'Modo "Escuchar" activo (Inglés -> Español).');
     }
 
@@ -121,7 +159,7 @@ export class RealtimeTranslator {
     }
 
     try {
-      this.recognition.start();
+      if (this.recognition) this.recognition.start();
     } catch (e) {
       console.warn('Recognition start error:', e);
     }
@@ -131,6 +169,8 @@ export class RealtimeTranslator {
     this.isActive = false;
     this.isProcessing = false;
     this.currentMode = null;
+    this.audioQueue = [];
+    this.isPlayingQueue = false;
 
     if (this.recognition) {
       try {
@@ -140,6 +180,20 @@ export class RealtimeTranslator {
 
     if (this.synth) {
       this.synth.cancel();
+    }
+
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio = null;
+      } catch (e) {}
+    }
+
+    if (this.mediaStream) {
+      try {
+        this.mediaStream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      this.mediaStream = null;
     }
 
     if (this.btnHablar) this.btnHablar.classList.remove('active');
@@ -174,7 +228,7 @@ export class RealtimeTranslator {
     const targetLang = mode === 'hablar' ? 'en' : 'es';
 
     this.addLogMessage('input', `Escuchado (${sourceLang.toUpperCase()}): "${inputText}"`);
-    this.updateStatus('Traduciendo...', 'active');
+    this.updateStatus('Traduciendo en tiempo real...', 'active');
 
     try {
       try { this.recognition.stop(); } catch (e) {}
@@ -186,8 +240,7 @@ export class RealtimeTranslator {
         this.addLogMessage('output', `Traducción (${targetLang.toUpperCase()}): "${translated}"`);
 
         if (translationData.audio_base64) {
-          this.updateStatus('Reproduciendo voz...', 'active');
-          await this.playAudioBase64(translationData.audio_base64);
+          this.enqueueAudio(translationData.audio_base64);
         } else {
           this.updateStatus('Reproduciendo voz...', 'active');
           await this.fallbackBrowserSpeech(translated, targetLang);
@@ -207,6 +260,33 @@ export class RealtimeTranslator {
           this.recognition.start();
         } catch (e) {}
       }
+    }
+  }
+
+  enqueueAudio(base64Data) {
+    if (!this.isActive) return;
+    this.audioQueue.push(base64Data);
+    if (!this.isPlayingQueue) {
+      this.processAudioQueue();
+    }
+  }
+
+  async processAudioQueue() {
+    if (this.audioQueue.length === 0 || !this.isActive) {
+      this.isPlayingQueue = false;
+      return;
+    }
+
+    this.isPlayingQueue = true;
+    const nextAudioBase64 = this.audioQueue.shift();
+    this.updateStatus('Reproduciendo voz...', 'active');
+
+    await this.playAudioBase64(nextAudioBase64);
+
+    if (this.isActive) {
+      this.processAudioQueue();
+    } else {
+      this.isPlayingQueue = false;
     }
   }
 
