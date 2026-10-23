@@ -295,6 +295,16 @@ const TOOL_DECLARATIONS: ToolDeclaration[] = [
           type: "OBJECT",
           properties: {}
         }
+      },
+      {
+        name: "consultar_medico",
+        description: "Redirige al usuario a la interfaz especializada del Asistente Médico en medical.html cuando el usuario describa síntomas físicos, dolores, molestias de salud o pida orientación médica.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            sintomas: { type: "STRING", description: "Descripción de los síntomas o consulta médica del usuario" }
+          }
+        }
       }
     ]
   }
@@ -434,7 +444,8 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
      - Para ELIMINAR una nota: usa 'eliminar_nota'.
    - ALARMAS: Si la peticion menciona "alarma", "despiértame", "sonar", "despertar" -> DEBES INVOCAR 'crear_alarma' O 'editar_alarma'.
    - MUSICA Y REPRODUCTOR: Si el usuario te pide "ponme musica", "quiero escuchar musica", "pon musica", "reproduce musica", "ponme una cancion", "pon algo", "pone algo", "toca algo", "pone una cancion" o pide escuchar canciones o un artista -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'reproducir_musica'.
-   - UBICACION Y GEOLOCALIZACION: Si el usuario te pide "compartir mi ubicación", "dónde estoy", "compartir ubicación", "dónde me encuentro" o similar -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'compartir_ubicacion'.`
+   - UBICACION Y GEOLOCALIZACION: Si el usuario te pide "compartir mi ubicación", "dónde estoy", "compartir ubicación", "dónde me encuentro" o similar -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'compartir_ubicacion'.
+   - CONSULTAS Y SÍNTOMAS MÉDICOS: Si el usuario describe síntomas físicos, dolores, molestias, síntoma, fiebre, mareos o pide diagnóstico u orientación médica -> DEBES INVOCAR OBLIGATORIAMENTE la herramienta 'consultar_medico'.`
         }
       ]
     };

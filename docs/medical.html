@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Toto - Asistente Médico</title>
+  <link rel="icon" type="image/png" href="./assets/img/logopwa.png">
+  <link rel="apple-touch-icon" href="./assets/img/logopwa.png">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+
+  <!-- Import model-viewer web component -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- 3D Canvas / Model Viewer Container -->
+    <div id="canvas-container">
+      <model-viewer
+        id="bot-model-viewer"
+        src="./assets/img/ia.gltf"
+        alt="Avatar Asistente Médico 3D"
+        auto-rotate
+        auto-rotate-delay="3000"
+        rotation-per-second="4deg"
+        camera-controls
+        disable-zoom
+        disable-pan
+        shadow-intensity="1"
+        shadow-softness="0.8"
+        exposure="1"
+        touch-action="none"
+        interaction-prompt="none"
+        style="width: 100%; height: 100%; outline: none;"
+      >
+        <div id="three-canvas-fallback" style="width: 100%; height: 100%;"></div>
+      </model-viewer>
+    </div>
+
+    <!-- Top Navigation Header Bar -->
+    <header class="top-bar">
+      <div class="top-actions-left" style="pointer-events: auto;">
+        <!-- Return Home / Main Page Button -->
+        <a href="./index.html" class="btn-icon" title="Inicio" aria-label="Inicio">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        </a>
+      </div>
+
+      <div class="top-actions">
+        <!-- Audio Speech Toggle -->
+        <button id="btn-toggle-speech" class="btn-icon active" title="Voz" aria-label="Voz">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Floating Thought / Speech Bubble -->
+    <div class="thought-bubble-container">
+      <div id="thought-bubble" class="thought-bubble" style="border-color: #38bdf8;">
+        <p id="thought-text">¡Hola! Soy tu Asistente Médico. ¿Qué síntomas o molestias sientes hoy?</p>
+      </div>
+      <div class="thought-tail">
+        <div class="thought-tail-dot dot-1"></div>
+        <div class="thought-tail-dot dot-2"></div>
+      </div>
+    </div>
+
+    <!-- Floating Action Control Bar -->
+    <div class="bottom-control-bar">
+      <!-- Main Mic / Voice Speak Button -->
+      <button id="btn-mic" class="btn-icon btn-main-mic" title="Hablar" aria-label="Hablar" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+      </button>
+
+      <!-- Toggle Chat Drawer Button -->
+      <button id="btn-chat-toggle" class="btn-icon" title="Chat" aria-label="Chat">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      </button>
+    </div>
+
+    <!-- Chat Drawer Side Panel -->
+    <aside id="chat-drawer" class="chat-drawer">
+      <div class="chat-header">
+        <div style="font-size: 0.95rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
+          Orientación Médica
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <!-- Clear Chat Button -->
+          <button id="btn-clear-chat" class="btn-icon" style="width: 36px; height: 36px;" title="Limpiar Chat" aria-label="Limpiar Chat">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+          <!-- Chat Voice Toggle Button -->
+          <button id="btn-chat-toggle-speech" class="btn-icon active" style="width: 36px; height: 36px;" title="Voz en Chat" aria-label="Voz en Chat">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+          </button>
+          <button id="btn-close-chat" class="btn-icon" style="width: 36px; height: 36px;" title="Cerrar Chat" aria-label="Cerrar Chat">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg ai">
+          ¡Hola! Soy tu Asistente Médico. Describe tus síntomas o molestias físicas para orientarte de forma segura.
+        </div>
+      </div>
+
+      <div class="chat-input-bar">
+        <!-- Voice mic button in chat -->
+        <button id="btn-chat-mic" class="btn-chat-action" title="Hablar por voz" aria-label="Hablar por voz">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        </button>
+
+        <input type="text" id="chat-input" placeholder="Describe tus síntomas o consulta..." autocomplete="off">
+
+        <button id="btn-send-chat" class="btn-send" title="Enviar" aria-label="Enviar" style="background: #0284c7;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 2 22 2"></polygon></svg>
+        </button>
+      </div>
+    </aside>
+
+  </div>
+
+  <script type="module" src="./js/medical.js"></script>
+</body>
+</html>
