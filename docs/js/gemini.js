@@ -318,6 +318,15 @@ export async function executeAlarmToolAsync(toolName, args) {
     }
     return '¡Claro! Abriendo el reproductor de música...';
   }
+  if (toolName === 'consultar_medico') {
+    const symptoms = args.sintomas || '';
+    if (!window.location.pathname.endsWith('medical.html')) {
+      setTimeout(() => {
+        window.location.href = `./medical.html?prompt=${encodeURIComponent(symptoms)}`;
+      }, 1200);
+    }
+    return '¡Claro! Te estoy redirigiendo con nuestro Asistente Médico para orientarte de forma segura...';
+  }
   if (toolName === 'compartir_ubicacion') {
     return await compartirUbicacion();
   }
@@ -809,6 +818,23 @@ async function executeDynamicClientAnswer(prompt, attachment) {
 
   if (attachment) {
     return 'He analizado la imagen proporcionada. Muestra un elemento visual que puedo examinar detalladamente. ¿Tienes alguna pregunta específica sobre su contenido o detalles?';
+  }
+
+  // Consultas o Sintomas Medicos
+  const isMedicalIntent =
+    lower.includes('sintoma') || lower.includes('síntoma') ||
+    lower.includes('me duele') || lower.includes('tengo dolor') ||
+    lower.includes('tengo fiebre') || lower.includes('me siento mal') ||
+    lower.includes('diagnostico') || lower.includes('diagnóstico') ||
+    lower.includes('orientacion medica') || lower.includes('orientación médica') ||
+    lower.includes('atencion medica') || lower.includes('atención médica') ||
+    lower.includes('consulta medica') || lower.includes('consulta médica');
+
+  if (isMedicalIntent && !window.location.pathname.endsWith('medical.html')) {
+    setTimeout(() => {
+      window.location.href = `./medical.html?prompt=${encodeURIComponent(prompt)}`;
+    }, 1200);
+    return 'Entendido. Para darte la mejor orientación médica sobre tus síntomas, te estoy llevando con nuestro Asistente Médico.';
   }
 
   // Compartir Ubicación
