@@ -342,7 +342,7 @@ serve(async (req: Request) => {
       const candidateModels = await discoverAvailableGeminiModels(apiKey);
       const systemInstruction = {
         parts: [{
-          text: `Eres el asistente de música de Amigo. Responde siempre de forma súper alegre, directa y en español.
+          text: `Eres el asistente de música de Toto. Responde siempre de forma súper alegre, directa y en español.
 Tanto si el usuario te pide una canción como si quiere controlar la música, dale una respuesta corta y motivadora.`
         }]
       };

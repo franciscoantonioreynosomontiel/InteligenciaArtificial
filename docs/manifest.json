@@ -1,7 +1,7 @@
 {
-  "name": "Amigo",
-  "short_name": "Amigo",
-  "description": "Amigo - Asistente Virtual Interactivo 3D con IA",
+  "name": "Toto",
+  "short_name": "Toto",
+  "description": "Toto - Asistente Virtual Interactivo 3D con IA",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F3E8FF",
