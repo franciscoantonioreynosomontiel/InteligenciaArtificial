@@ -15,12 +15,111 @@ let lastCoords = null;
 let globalUpdateCallback = null;
 let isVisibilityListenerAttached = false;
 
+let wakeLock = null;
+let bgWorker = null;
+let silentAudioCtx = null;
+let silentOscillator = null;
+
 // 24 Hours in milliseconds
 const MAX_SHARING_DURATION_MS = 24 * 60 * 60 * 1000;
-// Minimum interval between pushes when moving (1 minute)
-const MIN_PUSH_INTERVAL_MS = 60 * 1000;
-// Maximum interval between pushes even if stationary (3 minutes = well within 20min requirement)
-const MAX_PUSH_INTERVAL_MS = 3 * 60 * 1000;
+// Minimum interval between pushes when moving (15 seconds)
+const MIN_PUSH_INTERVAL_MS = 15 * 1000;
+// Maximum interval between pushes even if stationary (2 minutes)
+const MAX_PUSH_INTERVAL_MS = 2 * 60 * 1000;
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+      });
+    } catch (err) {
+      console.warn('Wake Lock request failed:', err);
+    }
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock !== null) {
+    try {
+      wakeLock.release();
+    } catch (e) {}
+    wakeLock = null;
+  }
+}
+
+function startBackgroundWorker(intervalMs = 20000) {
+  stopBackgroundWorker();
+  try {
+    const workerCode = `
+      let timer = null;
+      self.onmessage = function(e) {
+        if (e.data.action === 'start') {
+          if (timer) clearInterval(timer);
+          timer = setInterval(function() {
+            self.postMessage('tick');
+          }, e.data.interval || 20000);
+        } else if (e.data.action === 'stop') {
+          if (timer) clearInterval(timer);
+          timer = null;
+        }
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    bgWorker = new Worker(URL.createObjectURL(blob));
+    bgWorker.onmessage = async (e) => {
+      if (e.data === 'tick' && isSharingLocationActive()) {
+        try {
+          await updateLocationInSupabase(null, false);
+        } catch (err) {}
+      }
+    };
+    bgWorker.postMessage({ action: 'start', interval: intervalMs });
+  } catch (e) {
+    console.warn('Could not initialize background worker timer:', e);
+  }
+}
+
+function stopBackgroundWorker() {
+  if (bgWorker) {
+    try {
+      bgWorker.postMessage({ action: 'stop' });
+      bgWorker.terminate();
+    } catch (e) {}
+    bgWorker = null;
+  }
+}
+
+function startSilentAudioHeartbeat() {
+  stopSilentAudioHeartbeat();
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    silentAudioCtx = new AudioCtx();
+    const gain = silentAudioCtx.createGain();
+    gain.gain.value = 0.0001;
+    silentOscillator = silentAudioCtx.createOscillator();
+    silentOscillator.type = 'sine';
+    silentOscillator.frequency.value = 440;
+    silentOscillator.connect(gain);
+    gain.connect(silentAudioCtx.destination);
+    silentOscillator.start();
+  } catch (e) {
+    console.warn('Silent audio heartbeat warning:', e);
+  }
+}
+
+function stopSilentAudioHeartbeat() {
+  if (silentOscillator) {
+    try { silentOscillator.stop(); } catch (e) {}
+    silentOscillator = null;
+  }
+  if (silentAudioCtx) {
+    try { silentAudioCtx.close(); } catch (e) {}
+    silentAudioCtx = null;
+  }
+}
 
 export function getDeviceId() {
   let devId = localStorage.getItem('ia_agent_device_id');
@@ -78,10 +177,10 @@ export async function getCurrentPositionAsync() {
         navigator.geolocation.getCurrentPosition(
           (posLow) => resolve(posLow.coords),
           (errLow) => reject(errLow),
-          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 15000 }
         );
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });
 }
@@ -114,11 +213,11 @@ export async function updateLocationInSupabase(coordsOverride = null, forcePush 
     const lat = coords.latitude;
     const lon = coords.longitude;
 
-    // Check if location moved significantly (> 15 meters) or max interval reached
+    // Check if location moved significantly (> 10 meters) or max interval reached
     let moved = true;
     if (lastCoords) {
       const distKm = calculateDistanceKm(lastCoords.latitude, lastCoords.longitude, lat, lon);
-      if (distKm < 0.015 && timeSinceLastPush < MAX_PUSH_INTERVAL_MS && !forcePush) {
+      if (distKm < 0.010 && timeSinceLastPush < MAX_PUSH_INTERVAL_MS && !forcePush) {
         moved = false;
       }
     }
@@ -177,13 +276,18 @@ export async function startLocationSharing(onUpdateCallback = null) {
     localStorage.setItem(SHARING_START_KEY, new Date().toISOString());
   }
 
+  // 1. Keep device/screen awake and active using Wake Lock, Web Worker Timer & Web Audio Heartbeat
+  requestWakeLock();
+  startBackgroundWorker(15000);
+  startSilentAudioHeartbeat();
+
   // Immediate push
   let lastData = null;
   try {
     lastData = await updateLocationInSupabase(null, true);
   } catch (e) {}
 
-  // 1. Register continuous Geolocation Watcher for background tracking
+  // 2. Register continuous Geolocation Watcher for real-time tracking
   if ('geolocation' in navigator && watchPositionId === null) {
     try {
       watchPositionId = navigator.geolocation.watchPosition(
@@ -199,14 +303,14 @@ export async function startLocationSharing(onUpdateCallback = null) {
         (error) => {
           console.warn('watchPosition warning/error:', error);
         },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     } catch (e) {
       console.warn('Could not register watchPosition:', e);
     }
   }
 
-  // 2. High-reliability fallback periodic interval (Every 2.5 minutes)
+  // 3. Main thread fallback periodic interval (Every 15 seconds)
   if (locationUpdateInterval) clearInterval(locationUpdateInterval);
   locationUpdateInterval = setInterval(async () => {
     if (!isSharingLocationActive()) {
@@ -216,14 +320,15 @@ export async function startLocationSharing(onUpdateCallback = null) {
     try {
       await updateLocationInSupabase(null, false);
     } catch (e) {}
-  }, 150000); // 2.5 minutes
+  }, 15000);
 
-  // 3. Attach Page Visibility and Window Focus Listeners to catch device wake/app switches
+  // 4. Attach Page Visibility and Window Focus Listeners to catch device wake/app switches
   if (!isVisibilityListenerAttached) {
     isVisibilityListenerAttached = true;
 
     const pushOnWake = async () => {
       if (isSharingLocationActive()) {
+        requestWakeLock();
         try {
           await updateLocationInSupabase(null, true);
         } catch (e) {}
@@ -252,6 +357,10 @@ export function initLocationSharingIfActive(onUpdateCallback = null) {
 export function stopLocationSharing() {
   localStorage.setItem(SHARING_ACTIVE_KEY, 'false');
   localStorage.removeItem(SHARING_START_KEY);
+
+  releaseWakeLock();
+  stopBackgroundWorker();
+  stopSilentAudioHeartbeat();
 
   if (watchPositionId !== null && 'geolocation' in navigator) {
     try {
