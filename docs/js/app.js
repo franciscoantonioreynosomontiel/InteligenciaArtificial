@@ -7,6 +7,7 @@ import {
   startLocationSharing,
   stopLocationSharing,
   isSharingLocationActive,
+  initLocationSharingIfActive,
   getTrackingLink,
   fetchTrackedLocation
 } from './ubicacion.js';
@@ -455,7 +456,7 @@ function ensureGlobalChatbotUI() {
             </div>
 
             <div style="font-size: 0.78rem; color: #64748b; background: #f8fafc; padding: 8px 12px; border-radius: 8px;">
-              ⚡ Modo Ahorro de Datos: Actualiza cada 30 segundos consumiendo solo ~100 bytes. Funciona de fondo en tu celular mientras usas la app o la mantienes abierta.
+              ⚡ Modo Ahorro de Datos: Se actualiza de fondo continuamente (mínimo cada 20 minutos por 24 horas) sin necesidad de abrir la app.
             </div>
           </div>
         </div>
@@ -471,11 +472,16 @@ function ensureGlobalChatbotUI() {
     trkModal.className = 'note-modal';
     trkModal.innerHTML = `
       <div class="note-modal-card" style="max-width: 540px; width: 92vw; padding: 20px;">
-        <div class="modal-header">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
           <h3 style="font-size: 1.1rem; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">
             Ubicación en Tiempo Real
           </h3>
-          <button id="btn-close-tracking-modal" class="btn-close-modal">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-refresh-tracking" class="btn-icon" title="Actualizar Ubicación" style="width: 32px; height: 32px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>
+            <button id="btn-close-tracking-modal" class="btn-close-modal">✕</button>
+          </div>
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
           <div id="tracking-status-banner" style="font-size: 0.82rem; padding: 8px 12px; border-radius: 10px; background: #e0f2fe; color: #0369a1; font-weight: 600;">
@@ -523,6 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
   requestPermissions();
   initAlarmExecutionEngine();
   checkUrlForTrackingParam();
+  initLocationSharingIfActive();
 
   if (document.getElementById('bot-model-viewer')) {
     showThoughtBubble('¡Hola! ¿En qué te puedo ayudar hoy?', 3000);
@@ -579,12 +586,20 @@ async function openTrackingViewerModal(deviceId) {
 
   modal.classList.add('open');
 
+  const refreshBtn = document.getElementById('btn-refresh-tracking');
+  if (refreshBtn) {
+    refreshBtn.onclick = async () => {
+      showToast('Actualizando ubicación en tiempo real...');
+      await updateTrackingViewerData(deviceId);
+    };
+  }
+
   await updateTrackingViewerData(deviceId);
 
   if (trackingPollInterval) clearInterval(trackingPollInterval);
   trackingPollInterval = setInterval(() => {
     updateTrackingViewerData(deviceId);
-  }, 25000);
+  }, 15000);
 }
 
 async function updateTrackingViewerData(deviceId) {
