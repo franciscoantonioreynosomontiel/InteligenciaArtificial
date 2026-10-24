@@ -63,7 +63,19 @@ function stopSpeech() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then((reg) => console.log('ServiceWorker registered:', reg.scope))
+      .then((reg) => {
+        console.log('ServiceWorker registered:', reg.scope);
+        reg.update().catch(() => {});
+
+        // Listen for background ticks from ServiceWorker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'BACKGROUND_LOCATION_TICK') {
+            if (typeof isSharingLocationActive === 'function' && isSharingLocationActive()) {
+              startLocationSharing().catch(() => {});
+            }
+          }
+        });
+      })
       .catch((err) => console.warn('ServiceWorker registration failed:', err));
   });
 }
