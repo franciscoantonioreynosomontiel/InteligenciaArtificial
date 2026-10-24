@@ -1,4 +1,4 @@
-const CACHE_NAME = 'toto-pwa-v3';
+const CACHE_NAME = 'toto-pwa-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -52,19 +52,57 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first strategy with fallback to cache for HTML/API, Cache first for assets
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response.status === 200) {
-          const resCopy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resCopy));
+
+  // For JS scripts, HTML and API, strictly attempt fresh network fetch first to ensure immediate PWA updates
+  const url = new URL(event.request.url);
+  const isScriptOrHtml = url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
+
+  if (isScriptOrHtml) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.status === 200) {
+            const resCopy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resCopy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+  } else {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          fetch(event.request).then((response) => {
+            if (response.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response));
+            }
+          }).catch(() => {});
+          return cachedResponse;
         }
-        return response;
+        return fetch(event.request).then((response) => {
+          if (response.status === 200) {
+            const resCopy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resCopy));
+          }
+          return response;
+        });
       })
-      .catch(() => caches.match(event.request))
-  );
+    );
+  }
+});
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'location-sync') {
+    event.waitUntil(
+      self.clients.matchAll().then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'BACKGROUND_LOCATION_TICK' });
+        });
+      })
+    );
+  }
 });
 
 // Handle Notification Clicks
