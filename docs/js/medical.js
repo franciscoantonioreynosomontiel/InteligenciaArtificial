@@ -1,9 +1,14 @@
 // Medical Assistant Client Logic - docs/js/medical.js
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { Scene3D } from './three-scene.js';
 
 const SUPABASE_URL = 'https://qqjhadwxboeichxtxree.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxamhhZHd4Ym9laWNoeHR4cmVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDY4ODAsImV4cCI6MjA5NTQyMjg4MH0.dM1VaV-lDPxoPlOHGAIbgfCSE3RMdURcVubq8tTs6yQ';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const MEDICAL_EDGE_FUNCTION = 'medical';
+
+const CONSULTATIONS_KEY = 'ia_agent_medical_consultations';
+const PROFILE_KEY = 'ia_agent_patient_profile';
 
 let scene3D = null;
 let mainSpeechEnabled = true;
@@ -14,6 +19,8 @@ let activeRecordingSource = null;
 let recognition = null;
 let currentElevenAudio = null;
 let chatHistory = [];
+let currentConsultationId = null;
+let currentConsultationTitle = null;
 
 let thoughtBubbleTimer = null;
 let thoughtLoadingTimer = null;
@@ -32,17 +39,162 @@ document.addEventListener('DOMContentLoaded', () => {
   setup3DViewer();
   setupSpeechRecognition();
   setupEventListeners();
-  restoreMedicalSession();
+  initConsultationSession();
+});
 
-  // Check URL query parameters for initial symptoms from redirection
+function getStoredProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getStoredConsultations() {
+  try {
+    const raw = localStorage.getItem(CONSULTATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveStoredConsultations(items) {
+  try {
+    localStorage.setItem(CONSULTATIONS_KEY, JSON.stringify(items));
+  } catch (e) {}
+}
+
+async function initConsultationSession() {
   const urlParams = new URLSearchParams(window.location.search);
+  const cidParam = urlParams.get('cid');
+  const isNewParam = urlParams.get('new') === 'true';
   const promptParam = urlParams.get('prompt') || urlParams.get('sintoma');
+
+  if (cidParam) {
+    // Resume specific consultation
+    currentConsultationId = cidParam;
+    await loadConsultationThread(cidParam);
+  } else if (!isNewParam && !promptParam) {
+    // Check if user has prior consultations
+    const past = getStoredConsultations();
+    if (past.length > 0) {
+      const latest = past[0];
+      const greetingMsg = `¡Hola! Soy tu asistente médico personal. Tienes una consulta reciente sobre "${latest.title}". ¿Deseas continuar con esa consulta o prefieres iniciar una nueva?`;
+      showThoughtBubble(greetingMsg, 10000);
+      appendChatMessage(greetingMsg, 'ai');
+    } else {
+      restoreMedicalSession();
+    }
+  } else {
+    restoreMedicalSession();
+  }
+
   if (promptParam) {
     setTimeout(() => {
       handleUserInput(decodeURIComponent(promptParam), false);
     }, 600);
   }
-});
+}
+
+async function loadConsultationThread(cid) {
+  let consultations = getStoredConsultations();
+  let target = consultations.find((c) => c.cid === cid);
+
+  if (!target) {
+    try {
+      const { data, error } = await supabase
+        .from('medical_consultations')
+        .select('*')
+        .eq('consultation_id', cid)
+        .limit(1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        target = {
+          cid: data[0].consultation_id,
+          title: data[0].title,
+          summary: data[0].summary,
+          messages: data[0].messages || [],
+          status: data[0].status || 'activa',
+          createdAt: data[0].created_at,
+          updatedAt: data[0].updated_at
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (target) {
+    currentConsultationId = target.cid;
+    currentConsultationTitle = target.title;
+    chatHistory = [];
+
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages) chatMessages.innerHTML = '';
+
+    const msgs = Array.isArray(target.messages) ? target.messages : [];
+    if (msgs.length > 0) {
+      msgs.forEach((m) => {
+        const sender = m.role === 'user' ? 'user' : 'ai';
+        const text = m.content || m.text || '';
+        appendChatMessage(text, sender, false);
+        chatHistory.push({ role: m.role === 'user' ? 'user' : 'assistant', content: text });
+      });
+
+      const welcomeText = `Continuando consulta: "${target.title}". ¿Qué más te gustaría revisar sobre este malestar?`;
+      showThoughtBubble(welcomeText, 6000);
+    }
+  }
+}
+
+async function persistCurrentConsultation() {
+  if (!chatHistory || chatHistory.length === 0) return;
+
+  if (!currentConsultationId) {
+    currentConsultationId = 'med_cid_' + Date.now();
+    const firstUserMsg = chatHistory.find((m) => m.role === 'user');
+    const rawTitle = firstUserMsg ? firstUserMsg.content : 'Consulta Médica';
+    currentConsultationTitle = rawTitle.length > 40 ? rawTitle.substring(0, 40) + '...' : rawTitle;
+  }
+
+  const lastAiMsg = [...chatHistory].reverse().find((m) => m.role === 'assistant');
+
+  const consultationItem = {
+    cid: currentConsultationId,
+    title: currentConsultationTitle || 'Consulta Médica',
+    summary: lastAiMsg ? lastAiMsg.content : '',
+    messages: chatHistory.map((h) => ({ role: h.role, content: h.content })),
+    status: 'activa',
+    updatedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  };
+
+  // Local storage save
+  let consultations = getStoredConsultations();
+  const idx = consultations.findIndex((c) => c.cid === currentConsultationId);
+  if (idx !== -1) {
+    consultations[idx] = { ...consultations[idx], ...consultationItem };
+  } else {
+    consultations.unshift(consultationItem);
+  }
+  saveStoredConsultations(consultations);
+
+  // Supabase save
+  try {
+    const { data, error } = await supabase.from('medical_consultations').upsert([
+      {
+        consultation_id: consultationItem.cid,
+        title: consultationItem.title,
+        summary: consultationItem.summary,
+        messages: consultationItem.messages,
+        status: consultationItem.status,
+        updated_at: consultationItem.updatedAt
+      }
+    ], { onConflict: 'consultation_id' });
+  } catch (e) {
+    console.warn('Could not persist consultation to Supabase:', e);
+  }
+}
 
 function restoreMedicalSession() {
   try {
@@ -251,10 +403,14 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
   else hideThoughtBubble();
 
   try {
+    const patientProfile = getStoredProfile();
+
     const edgeUrl = `${SUPABASE_URL}/functions/v1/${MEDICAL_EDGE_FUNCTION}`;
     const payload = {
       prompt: text,
-      history: chatHistory.slice(-8)
+      history: chatHistory.slice(-8),
+      patient_profile: patientProfile,
+      consultation_title: currentConsultationTitle || null
     };
 
     const edgeResponse = await fetch(edgeUrl, {
@@ -281,6 +437,8 @@ async function handleUserInput(text, isVoice = false, fromChat = false) {
 
     appendChatMessage(aiReply, 'ai');
     chatHistory.push({ role: 'assistant', content: aiReply });
+
+    await persistCurrentConsultation();
 
     const allowVoice = isChatOpen ? chatSpeechEnabled : mainSpeechEnabled;
     if (allowVoice && aiReply) {
