@@ -28,16 +28,12 @@
       </div>
     </div>
 
-    <p style="color: #475569; font-size: 0.92rem; margin-bottom: 24px; line-height: 1.5;">
-      Completa la información de tu perfil médico para que el Asistente Médico y la API OpenMedical cuenten con contexto sobre tu salud, alergias y antecedentes al brindarte orientación. Todos los campos son totalmente opcionales.
-    </p>
+    <form id="form-patient-profile" style="display: flex; flex-direction: column; gap: 20px; margin-top: 16px;">
 
-    <form id="form-patient-profile" style="display: flex; flex-direction: column; gap: 20px;">
-
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
         <div class="form-group">
           <label for="prof-age">Edad</label>
-          <input type="number" id="prof-age" class="form-input" placeholder="Ej: 28" min="0" max="120">
+          <input type="number" id="prof-age" class="form-input" min="0" max="120">
         </div>
 
         <div class="form-group">
@@ -52,12 +48,12 @@
 
         <div class="form-group">
           <label for="prof-height">Altura (cm / m)</label>
-          <input type="text" id="prof-height" class="form-input" placeholder="Ej: 175 cm">
+          <input type="text" id="prof-height" class="form-input">
         </div>
 
         <div class="form-group">
           <label for="prof-weight">Peso (kg / lbs)</label>
-          <input type="text" id="prof-weight" class="form-input" placeholder="Ej: 70 kg">
+          <input type="text" id="prof-weight" class="form-input">
         </div>
 
         <div class="form-group">
@@ -74,31 +70,31 @@
             <option value="AB-">AB negative (AB-)</option>
           </select>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label for="prof-allergies">Alergias (medicamentos, alimentos, etc.)</label>
-        <input type="text" id="prof-allergies" class="form-input" placeholder="Ej: Penicilina, polen, mariscos...">
-      </div>
+        <div class="form-group">
+          <label for="prof-allergies">Alergias (medicamentos, alimentos, etc.)</label>
+          <input type="text" id="prof-allergies" class="form-input">
+        </div>
 
-      <div class="form-group">
-        <label for="prof-hereditary">Enfermedades Hereditarias o Antecedentes Familiares</label>
-        <input type="text" id="prof-hereditary" class="form-input" placeholder="Ej: Diabetes tipo 2 en línea paterna, hipertensión...">
-      </div>
+        <div class="form-group">
+          <label for="prof-hereditary">Enfermedades Hereditarias o Antecedentes Familiares</label>
+          <input type="text" id="prof-hereditary" class="form-input">
+        </div>
 
-      <div class="form-group">
-        <label for="prof-chronic">Condiciones Crónicas o Diagnósticos Previos</label>
-        <input type="text" id="prof-chronic" class="form-input" placeholder="Ej: Asma leve, migraña ocasional...">
-      </div>
+        <div class="form-group">
+          <label for="prof-chronic">Condiciones Crónicas o Diagnósticos Previos</label>
+          <input type="text" id="prof-chronic" class="form-input">
+        </div>
 
-      <div class="form-group">
-        <label for="prof-medications">Medicamentos Actuales o Suplementos</label>
-        <input type="text" id="prof-medications" class="form-input" placeholder="Ej: Salbutamol en aerosol, Omega 3...">
-      </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label for="prof-medications">Medicamentos Actuales o Suplementos</label>
+          <input type="text" id="prof-medications" class="form-input">
+        </div>
 
-      <div class="form-group">
-        <label for="prof-notes">Notas Adicionales para el Médico</label>
-        <textarea id="prof-notes" class="form-textarea" placeholder="Cualquier otro detalle de salud que consideres importante..."></textarea>
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label for="prof-notes">Notas Adicionales para el Médico</label>
+          <textarea id="prof-notes" class="form-textarea"></textarea>
+        </div>
       </div>
 
       <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
