@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Toto - Perfil Médico del Paciente</title>
+  <link rel="icon" type="image/png" href="./assets/img/logopwa.png">
+  <link rel="apple-touch-icon" href="./assets/img/logopwa.png">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="page-learn page-medical">
+
+  <div class="learn-container" style="max-width: 800px;">
+    <div class="learn-header">
+      <div class="header-title-group">
+        <h1>Perfil Médico del Paciente</h1>
+      </div>
+      <div class="header-nav-buttons">
+        <a href="./consultas.html" class="btn-back">Consultas</a>
+        <a href="./perfilmedico.html" class="btn-back btn-back-primary">Perfil</a>
+        <a href="./medical.html" class="btn-back">Asistente</a>
+        <a href="./index.html" class="btn-back btn-back-primary">Volver</a>
+      </div>
+    </div>
+
+    <p style="color: #475569; font-size: 0.92rem; margin-bottom: 24px; line-height: 1.5;">
+      Completa la información de tu perfil médico para que el Asistente Médico y la API OpenMedical cuenten con contexto sobre tu salud, alergias y antecedentes al brindarte orientación. Todos los campos son totalmente opcionales.
+    </p>
+
+    <form id="form-patient-profile" style="display: flex; flex-direction: column; gap: 20px;">
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <div class="form-group">
+          <label for="prof-age">Edad</label>
+          <input type="number" id="prof-age" class="form-input" placeholder="Ej: 28" min="0" max="120">
+        </div>
+
+        <div class="form-group">
+          <label for="prof-gender">Género</label>
+          <select id="prof-gender" class="form-input custom-select">
+            <option value="">No especificado</option>
+            <option value="Masculino">Masculino</option>
+            <option value="Femenino">Femenino</option>
+            <option value="Otro">Otro / Prefiero no decir</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="prof-height">Altura (cm / m)</label>
+          <input type="text" id="prof-height" class="form-input" placeholder="Ej: 175 cm">
+        </div>
+
+        <div class="form-group">
+          <label for="prof-weight">Peso (kg / lbs)</label>
+          <input type="text" id="prof-weight" class="form-input" placeholder="Ej: 70 kg">
+        </div>
+
+        <div class="form-group">
+          <label for="prof-blood">Tipo de Sangre</label>
+          <select id="prof-blood" class="form-input custom-select">
+            <option value="">No especificado</option>
+            <option value="O+">O positive (O+)</option>
+            <option value="O-">O negative (O-)</option>
+            <option value="A+">A positive (A+)</option>
+            <option value="A-">A negative (A-)</option>
+            <option value="B+">B positive (B+)</option>
+            <option value="B-">B negative (B-)</option>
+            <option value="AB+">AB positive (AB+)</option>
+            <option value="AB-">AB negative (AB-)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="prof-allergies">Alergias (medicamentos, alimentos, etc.)</label>
+        <input type="text" id="prof-allergies" class="form-input" placeholder="Ej: Penicilina, polen, mariscos...">
+      </div>
+
+      <div class="form-group">
+        <label for="prof-hereditary">Enfermedades Hereditarias o Antecedentes Familiares</label>
+        <input type="text" id="prof-hereditary" class="form-input" placeholder="Ej: Diabetes tipo 2 en línea paterna, hipertensión...">
+      </div>
+
+      <div class="form-group">
+        <label for="prof-chronic">Condiciones Crónicas o Diagnósticos Previos</label>
+        <input type="text" id="prof-chronic" class="form-input" placeholder="Ej: Asma leve, migraña ocasional...">
+      </div>
+
+      <div class="form-group">
+        <label for="prof-medications">Medicamentos Actuales o Suplementos</label>
+        <input type="text" id="prof-medications" class="form-input" placeholder="Ej: Salbutamol en aerosol, Omega 3...">
+      </div>
+
+      <div class="form-group">
+        <label for="prof-notes">Notas Adicionales para el Médico</label>
+        <textarea id="prof-notes" class="form-textarea" placeholder="Cualquier otro detalle de salud que consideres importante..."></textarea>
+      </div>
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+        <button type="submit" class="btn-primary-action" style="width: auto; padding: 12px 28px; background: #0284c7;">
+          Guardar Perfil Médico
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script type="module" src="./js/perfilmedico.js"></script>
+</body>
+</html>

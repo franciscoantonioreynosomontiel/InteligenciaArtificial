@@ -24,7 +24,7 @@
   <!-- Import model-viewer web component -->
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 </head>
-<body>
+<body class="page-medical">
 
   <div id="app-container">
     <!-- 3D Canvas / Model Viewer Container -->
@@ -52,11 +52,10 @@
 
     <!-- Top Navigation Header Bar -->
     <header class="top-bar">
-      <div class="top-actions-left" style="pointer-events: auto;">
-        <!-- Return Home / Main Page Button -->
-        <a href="./index.html" class="btn-icon" title="Inicio" aria-label="Inicio">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-        </a>
+      <div class="top-actions-left" style="pointer-events: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <a href="./consultas.html" class="btn-back">Consultas</a>
+        <a href="./perfilmedico.html" class="btn-back">Perfil</a>
+        <a href="./index.html" class="btn-back btn-back-primary">Volver</a>
       </div>
 
       <div class="top-actions">

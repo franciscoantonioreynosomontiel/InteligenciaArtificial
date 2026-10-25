@@ -10,10 +10,25 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
+interface PatientProfile {
+  age?: number | string;
+  gender?: string;
+  height?: string;
+  weight?: string;
+  blood_type?: string;
+  allergies?: string;
+  hereditary_diseases?: string;
+  chronic_conditions?: string;
+  medications?: string;
+  notes?: string;
+}
+
 interface RequestBody {
   prompt?: string;
   message?: string;
   history?: Array<{ role: string; content: string }>;
+  patient_profile?: PatientProfile;
+  consultation_title?: string;
 }
 
 function sanitizeAIResponse(text: string): string {
@@ -34,8 +49,32 @@ serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json().catch(() => ({}));
-    const { prompt, message, history } = body;
+    const { prompt, message, history, patient_profile, consultation_title } = body;
     const userPrompt = (prompt || message || 'Hola').trim();
+
+    let profileContextStr = '';
+    if (patient_profile && typeof patient_profile === 'object') {
+      const parts = [];
+      if (patient_profile.age) parts.push(`Edad: ${patient_profile.age}`);
+      if (patient_profile.gender) parts.push(`Género: ${patient_profile.gender}`);
+      if (patient_profile.height) parts.push(`Altura: ${patient_profile.height}`);
+      if (patient_profile.weight) parts.push(`Peso: ${patient_profile.weight}`);
+      if (patient_profile.blood_type) parts.push(`Tipo de sangre: ${patient_profile.blood_type}`);
+      if (patient_profile.allergies) parts.push(`Alergias: ${patient_profile.allergies}`);
+      if (patient_profile.hereditary_diseases) parts.push(`Enfermedades hereditarias: ${patient_profile.hereditary_diseases}`);
+      if (patient_profile.chronic_conditions) parts.push(`Enfermedades crónicas: ${patient_profile.chronic_conditions}`);
+      if (patient_profile.medications) parts.push(`Medicamentos actuales: ${patient_profile.medications}`);
+      if (patient_profile.notes) parts.push(`Notas adicionales: ${patient_profile.notes}`);
+
+      if (parts.length > 0) {
+        profileContextStr = `\n[PERFIL DEL PACIENTE PARA EVALUACIÓN CLÍNICA]:\n${parts.join('\n')}\nUtiliza estos datos del perfil para brindar una orientación médica más precisa y personalizada.\n`;
+      }
+    }
+
+    let consultationContextStr = '';
+    if (consultation_title) {
+      consultationContextStr = `\n[TEMA DE LA CONSULTA ACTUAL]: ${consultation_title}\n`;
+    }
 
     const apiKey = (
       Deno.env.get('medicalApi') ||
@@ -69,7 +108,7 @@ serve(async (req: Request) => {
             {
               role: 'system',
               content: `Eres un Asistente Médico virtual responsable, empático, claro y profesional.
-Tu objetivo es ayudar a orientar al usuario sobre molestias o síntomas de salud.
+Tu objetivo es ayudar a orientar al usuario sobre molestias o síntomas de salud.${profileContextStr}${consultationContextStr}
 REGLAS MANDATORIAS:
 1. Haz preguntas de seguimiento para comprender mejor los síntomas.
 2. Presenta posibles causas únicamente como orientación preliminar, SIN afirmar diagnósticos definitivos.
@@ -121,7 +160,7 @@ REGLAS MANDATORIAS:
           systemInstruction: {
             parts: [{
               text: `Eres un Asistente Médico virtual responsable, empático, claro y profesional.
-Tu objetivo es orientar al usuario sobre molestias físicas, dolores o síntomas de salud.
+Tu objetivo es orientar al usuario sobre molestias físicas, dolores o síntomas de salud.${profileContextStr}${consultationContextStr}
 
 REGLAS ABSOLUTAS:
 1. Haz preguntas de seguimiento claras y breves para comprender mejor los síntomas del usuario (duración, intensidad, factores desencadenantes).

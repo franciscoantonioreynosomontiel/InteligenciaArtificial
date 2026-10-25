@@ -828,13 +828,18 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     lower.includes('diagnostico') || lower.includes('diagnóstico') ||
     lower.includes('orientacion medica') || lower.includes('orientación médica') ||
     lower.includes('atencion medica') || lower.includes('atención médica') ||
-    lower.includes('consulta medica') || lower.includes('consulta médica');
+    lower.includes('consulta medica') || lower.includes('consulta médica') ||
+    lower.includes('quiero una consulta') || lower.includes('quiero consulta') ||
+    lower.includes('necesito una consulta') || lower.includes('necesito consulta') ||
+    lower.includes('hacer una consulta') || lower.includes('hacer consulta') ||
+    lower.includes('consulta con el medico') || lower.includes('consulta médica') ||
+    lower.includes('enfermedad') || lower.includes('enfermo') || lower.includes('malestar');
 
   if (isMedicalIntent && !window.location.pathname.endsWith('medical.html')) {
     setTimeout(() => {
       window.location.href = `./medical.html?prompt=${encodeURIComponent(prompt)}`;
     }, 1200);
-    return 'Entendido. Para darte la mejor orientación médica sobre tus síntomas, te estoy llevando con nuestro Asistente Médico.';
+    return 'Entendido. Para darte la mejor orientación médica sobre tu consulta, te estoy llevando con nuestro Asistente Médico.';
   }
 
   // Compartir Ubicación
