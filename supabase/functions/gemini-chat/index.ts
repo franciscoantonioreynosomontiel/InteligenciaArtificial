@@ -60,32 +60,42 @@ interface ToolDeclaration {
   functionDeclarations: FunctionDeclaration[];
 }
 
-function sanitizeAIResponse(text: string): string {
+function sanitizeAIResponse(text: string, userPrompt: string = ''): string {
   if (!text) return '';
   let clean = text;
 
+  // 1. Remove thinking tags <thought>...</thought> or <think>...</think>
   clean = clean.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
-  clean = clean.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:|\"como se hace|\"how to make)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
-  clean = clean.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
 
+  // 2. Remove "Proceso de pensamiento", "Pensamiento:", "Thought:", "Reasoning:" sections
+  clean = clean.replace(/(proceso de pensamiento|pensamiento|thought|reasoning|internal monologue|drafting):?[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |Es |En |Con |De |Un |La |Lo |Si |No |Te |Me |Por |$)/gi, '');
+
+  // 3. Remove draft breakdown / question decomposition blocks
+  clean = clean.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
+
+  // 4. Filter out lines containing meta-text or thinking headers
   const lines = clean.split('\n');
   const filtered = lines.filter(line => {
     const trimmed = line.trim();
     const lower = trimmed.toLowerCase();
-    if (trimmed.startsWith('*') && (
-      lower.includes('user input') ||
-      lower.includes('persona') ||
-      lower.includes('constraint') ||
-      lower.includes('thought') ||
-      lower.includes('direct answer') ||
-      lower.includes('reasoning') ||
-      lower.includes('pensamiento') ||
-      lower.includes('spanish') ||
-      lower.includes('knowledge areas') ||
-      lower.includes('step-by-step instructions') ||
-      lower.includes('sponge') ||
-      lower.includes('tres leches')
-    )) {
+    if (
+      lower.includes('proceso de pensamiento') ||
+      lower.includes('pensamiento:') ||
+      lower.includes('thought:') ||
+      lower.includes('reasoning:') ||
+      (trimmed.startsWith('*') && (
+        lower.includes('user input') ||
+        lower.includes('persona') ||
+        lower.includes('constraint') ||
+        lower.includes('thought') ||
+        lower.includes('direct answer') ||
+        lower.includes('reasoning') ||
+        lower.includes('pensamiento') ||
+        lower.includes('spanish') ||
+        lower.includes('knowledge areas') ||
+        lower.includes('step-by-step instructions')
+      ))
+    ) {
       return false;
     }
     return true;
@@ -93,6 +103,24 @@ function sanitizeAIResponse(text: string): string {
 
   clean = filtered.join('\n').trim();
   clean = clean.replace(/[*_~`#]/g, '').trim();
+
+  // 5. Enforce strict max 5 lines rule unless user explicitly requested detailed explanation
+  const lowerPrompt = (userPrompt || '').toLowerCase();
+  const asksForDetail =
+    lowerPrompt.includes('explica bien') ||
+    lowerPrompt.includes('explícame bien') ||
+    lowerPrompt.includes('explica en detalle') ||
+    lowerPrompt.includes('explicación detallada') ||
+    lowerPrompt.includes('explicacion detallada') ||
+    lowerPrompt.includes('tutorial completo') ||
+    lowerPrompt.includes('paso a paso');
+
+  if (!asksForDetail) {
+    const finalLines = clean.split('\n').filter(l => l.trim().length > 0);
+    if (finalLines.length > 5) {
+      clean = finalLines.slice(0, 5).join('\n').trim();
+    }
+  }
 
   return clean;
 }
@@ -419,14 +447,13 @@ ${knowledge_context ? `CONOCIMIENTO DEL USUARIO EN SEGUNDO PLANO: ${knowledge_co
 
 REGLAS ABSOLUTAS E IMPERATIVAS:
 1. Responde UNICAMENTE a la pregunta o comentario explicito que el usuario te acaba de hacer en español.
-2. NUNCA, BAJO NINGUNA CIRCUNSTANCIA, menciones las notas, la lista de compras, elementos guardados, alarmas o recordatorios A MENOS QUE EL USUARIO TE PREGUNTE EXPLICITAMENTE SOBRE ELLOS. Si el usuario te saluda con "Hola" o te hace una pregunta general, responde UNICAMENTE a su saludo o pregunta sin añadir comentarios espontáneos como "veo que tienes compras guardadas" o similares.
-3. Queda STRICTAMENTE PROHIBIDO incluir pensamientos internos, notas de razonamiento, traducciones al inglés, borradores de pasos, desgloses de preguntas o metacomentarios.
-4. ESTILO CONVERSACIONAL Y FLUIDO:
-   - Sé siempre conversacional, amigable, cercano y empático (estilo diálogo continuo, como ChatGPT).
-   - Queda PROHIBIDO responder con párrafos de información masiva, paredes de texto o tutoriales gigantescos de golpe ante preguntas abiertas, síntomas, dudas o solicitudes generales.
-   - Si el usuario te cuenta una situación, un problema o un síntoma (por ejemplo "me duele la cabeza con frecuencia, ¿qué podría ser?"), da una respuesta inicial breve, clara y orientativa, y hazle preguntas de seguimiento para obtener más información relevante antes de dar conclusiones apresuradas.
-   - Fomenta la conversación y el intercambio continuo de mensajes para guiar al usuario paso a paso.
-4. ACCIONES Y PETICIONES DIRECTAS:
+2. NUNCA, BAJO NINGUNA CIRCUNSTANCIA, menciones las notas, la lista de compras, elementos guardados, alarmas o recordatorios A MENOS QUE EL USUARIO TE PREGUNTE EXPLICITAMENTE SOBRE ELLOS. Si el usuario te saluda con "Hola" o te hace una pregunta general, responde UNICAMENTE a su saludo o pregunta sin añadir comentarios espontáneos.
+3. PROHIBICION ABSOLUTA DE PROCESO DE PENSAMIENTO: Queda STRICTAMENTE PROHIBIDO incluir o imprimir "Proceso de pensamiento", pensamientos internos, notas de razonamiento, bloques <thought>, traducciones al inglés, borradores de pasos, desgloses o metacomentarios. Genera DIRECTAMENTE y EXCLUSIVAMENTE la respuesta final.
+4. LIMITE STRICTO DE LONGITUD (MAXIMO 5 RENGLONES): Todas tus respuestas deben tener COMO MAXIMO 5 RENGLONES O LINEAS DE TEXTO. No te extiendas en párrafos largos ni tutoriales gigantescos salvo que el usuario te pida explícitamente "explícame bien", "explicación detallada" o "paso a paso".
+5. ESTILO CONVERSACIONAL Y FLUIDO:
+   - Sé siempre directo, amigable, alegre, cercano y empático (como ChatGPT Pro).
+   - Si el usuario te cuenta una situación o duda general, da una respuesta inicial directa y breve (máximo 5 renglones) y hazle una pregunta de seguimiento si es necesario.
+6. ACCIONES Y PETICIONES DIRECTAS:
    - Si el usuario realiza un cálculo simple (ej: "1 mas 1"), o pide ejecutar una acción directa (crear alarma, recordatorio, nota, llamar a alguien o poner música), ejecuta la herramienta correspondiente o da la respuesta directa pero con un tono cálido y conversacional.
 6. CÁLCULO DE TIEMPO RELATIVO Y ALARMAS/RECORDATORIOS:
    - Para expresiones como "en 3 minutos" o "en 10 minutos", SUMA exactamente esa cantidad de minutos a la hora actual indicada en el contexto temporal y genera el recordatorio/alarma con la hora calculada (HH:MM) y la fecha de hoy (YYYY-MM-DD).
@@ -511,7 +538,7 @@ REGLAS ABSOLUTAS E IMPERATIVAS:
       }
     }
 
-    const cleanReply = sanitizeAIResponse(rawReply);
+    const cleanReply = sanitizeAIResponse(rawReply, userPrompt);
 
     return new Response(
       JSON.stringify({

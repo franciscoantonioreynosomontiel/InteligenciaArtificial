@@ -667,38 +667,40 @@ export async function formulateAIReminderMessage(referenceText) {
   return `Es hora de recordar: ${referenceText}.`;
 }
 
-export function cleanAIResponseText(text) {
+export function cleanAIResponseText(text, userPrompt = '') {
   if (!text) return '';
   let cleaned = text;
 
-  // 1. Remove thinking blocks
+  // 1. Remove thinking blocks <thought>...</thought> or <think>...</think>
   cleaned = cleaned.replace(/<(thought|think)[\s\S]*?<\/\1>/gi, '');
 
-  // 2. Remove draft breakdown / question decomposition blocks
-  cleaned = cleaned.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:|\"como se hace|\"how to make)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
+  // 2. Remove "Proceso de pensamiento", "Pensamiento:", "Thought:", "Reasoning:" sections
+  cleaned = cleaned.replace(/(proceso de pensamiento|pensamiento|thought|reasoning|internal monologue|drafting):?[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |Es |En |Con |De |Un |La |Lo |Si |No |Te |Me |Por |$)/gi, '');
 
-  // 3. Remove "Pensamiento: ...", "Thought: ...", "Reasoning: ..." prefixes
-  cleaned = cleaned.replace(/(pensamiento|thought|reasoning|proceso de pensamiento):[\s\S]*?(?=\n\n|\n[A-Z¡¿"']|$)/gi, '');
+  // 3. Remove draft breakdown / question decomposition blocks
+  cleaned = cleaned.replace(/(question \d+:|knowledge areas:|steps \(|self-correction|drafting:|persona:|constraint:)[\s\S]*?(?=\n\n[A-Z¡¿"']|Para |El |Hola |¡Hola |$)/gi, '');
 
-  // 4. Remove meta-headers
+  // 4. Filter out lines containing meta-text or thinking headers
   const lines = cleaned.split('\n');
   const filteredLines = lines.filter((line) => {
     const trimmed = line.trim();
     const lower = trimmed.toLowerCase();
     if (
-      trimmed.startsWith('*') &&
-      (lower.includes('user input') ||
-        lower.includes('persona') ||
-        lower.includes('constraint') ||
-        lower.includes('thought') ||
-        lower.includes('direct answer') ||
-        lower.includes('reasoning') ||
-        lower.includes('pensamiento') ||
-        lower.includes('spanish') ||
-        lower.includes('knowledge areas') ||
-        lower.includes('step-by-step instructions') ||
-        lower.includes('sponge') ||
-        lower.includes('tres leches'))
+      lower.includes('proceso de pensamiento') ||
+      lower.includes('pensamiento:') ||
+      lower.includes('thought:') ||
+      lower.includes('reasoning:') ||
+      (trimmed.startsWith('*') &&
+        (lower.includes('user input') ||
+          lower.includes('persona') ||
+          lower.includes('constraint') ||
+          lower.includes('thought') ||
+          lower.includes('direct answer') ||
+          lower.includes('reasoning') ||
+          lower.includes('pensamiento') ||
+          lower.includes('spanish') ||
+          lower.includes('knowledge areas') ||
+          lower.includes('step-by-step instructions')))
     ) {
       return false;
     }
@@ -709,6 +711,24 @@ export function cleanAIResponseText(text) {
 
   // 5. Remove leftover markdown quotes and formatting
   cleaned = cleaned.replace(/[*_~`#]/g, '').trim();
+
+  // 6. Enforce strict max 5 lines rule unless user explicitly requested detailed explanation
+  const lowerPrompt = (userPrompt || '').toLowerCase();
+  const asksForDetail =
+    lowerPrompt.includes('explica bien') ||
+    lowerPrompt.includes('explícame bien') ||
+    lowerPrompt.includes('explica en detalle') ||
+    lowerPrompt.includes('explicación detallada') ||
+    lowerPrompt.includes('explicacion detallada') ||
+    lowerPrompt.includes('tutorial completo') ||
+    lowerPrompt.includes('paso a paso');
+
+  if (!asksForDetail) {
+    const finalLines = cleaned.split('\n').filter((l) => l.trim().length > 0);
+    if (finalLines.length > 5) {
+      cleaned = finalLines.slice(0, 5).join('\n').trim();
+    }
+  }
 
   return cleaned;
 }
@@ -731,6 +751,32 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
   }
 
   const lowerUser = (userPrompt || '').toLowerCase();
+
+  // Immediate redirect for Medical Queries from index or main chat
+  const isMedicalIntent =
+    lowerUser.includes('sintoma') || lowerUser.includes('síntoma') ||
+    lowerUser.includes('me duele') || lowerUser.includes('tengo dolor') ||
+    lowerUser.includes('tengo fiebre') || lowerUser.includes('me siento mal') ||
+    lowerUser.includes('diagnostico') || lowerUser.includes('diagnóstico') ||
+    lowerUser.includes('orientacion medica') || lowerUser.includes('orientación médica') ||
+    lowerUser.includes('atencion medica') || lowerUser.includes('atención médica') ||
+    lowerUser.includes('consulta medica') || lowerUser.includes('consulta médica') ||
+    lowerUser.includes('quiero una consulta') || lowerUser.includes('quiero consulta') ||
+    lowerUser.includes('necesito una consulta') || lowerUser.includes('necesito consulta') ||
+    lowerUser.includes('hacer una consulta') || lowerUser.includes('hacer consulta') ||
+    lowerUser.includes('consulta con el medico') || lowerUser.includes('medico') || lowerUser.includes('médico') ||
+    lowerUser.includes('doctor') || lowerUser.includes('enfermedad') || lowerUser.includes('enfermo') ||
+    lowerUser.includes('malestar') || lowerUser.includes('salud') || lowerUser.includes('síntomas') || lowerUser.includes('sintomas');
+
+  if (isMedicalIntent && !window.location.pathname.endsWith('medical.html')) {
+    const redirectMsg = 'Entendido. Para darte la mejor atención y orientación médica, te redirijo a nuestro Asistente Médico.';
+    chatHistory.push({ role: 'model', content: redirectMsg });
+    setTimeout(() => {
+      window.location.href = `./medical.html?prompt=${encodeURIComponent(userPrompt)}`;
+    }, 1200);
+    return redirectMsg;
+  }
+
   const isMusicIntent =
     lowerUser.includes('ponme musica') ||
     lowerUser.includes('quiero escuchar musica') ||
@@ -791,9 +837,9 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
           const toolRes = await executeAlarmToolAsync(fnName, fnArgs);
           toolResultsStr += ` ${toolRes}`;
         }
-        aiReplyText = cleanAIResponseText((resData.reply || '') + toolResultsStr);
+        aiReplyText = cleanAIResponseText((resData.reply || '') + toolResultsStr, cleanUserPrompt);
       } else if (resData && resData.reply && !resData.reply.startsWith('Error')) {
-        aiReplyText = cleanAIResponseText(resData.reply);
+        aiReplyText = cleanAIResponseText(resData.reply, cleanUserPrompt);
       }
     }
   } catch (err) {
