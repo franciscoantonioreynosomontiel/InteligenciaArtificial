@@ -69,32 +69,13 @@ function saveStoredConsultations(items) {
 async function initConsultationSession() {
   const urlParams = new URLSearchParams(window.location.search);
   const cidParam = urlParams.get('cid');
-  const isNewParam = urlParams.get('new') === 'true';
-  const promptParam = urlParams.get('prompt') || urlParams.get('sintoma');
 
   if (cidParam) {
     // Resume specific consultation
     currentConsultationId = cidParam;
     await loadConsultationThread(cidParam);
-  } else if (!isNewParam && !promptParam) {
-    // Check if user has prior consultations
-    const past = getStoredConsultations();
-    if (past.length > 0) {
-      const latest = past[0];
-      const greetingMsg = `¡Hola! Soy tu asistente médico personal. Tienes una consulta reciente sobre "${latest.title}". ¿Deseas continuar con esa consulta o prefieres iniciar una nueva?`;
-      showThoughtBubble(greetingMsg, 10000);
-      appendChatMessage(greetingMsg, 'ai');
-    } else {
-      restoreMedicalSession();
-    }
   } else {
     restoreMedicalSession();
-  }
-
-  if (promptParam) {
-    setTimeout(() => {
-      handleUserInput(decodeURIComponent(promptParam), false);
-    }, 600);
   }
 }
 

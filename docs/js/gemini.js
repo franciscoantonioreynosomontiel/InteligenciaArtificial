@@ -319,13 +319,10 @@ export async function executeAlarmToolAsync(toolName, args) {
     return '¡Claro! Abriendo el reproductor de música...';
   }
   if (toolName === 'consultar_medico') {
-    const symptoms = args.sintomas || '';
     if (!window.location.pathname.endsWith('medical.html')) {
-      setTimeout(() => {
-        window.location.href = `./medical.html?prompt=${encodeURIComponent(symptoms)}`;
-      }, 1200);
+      window.location.href = './medical.html';
     }
-    return '¡Claro! Te estoy redirigiendo con nuestro Asistente Médico para orientarte de forma segura...';
+    return '';
   }
   if (toolName === 'compartir_ubicacion') {
     return await compartirUbicacion();
@@ -769,12 +766,8 @@ export async function processGeminiRequest(userPrompt, attachmentData = null) {
     lowerUser.includes('malestar') || lowerUser.includes('salud') || lowerUser.includes('síntomas') || lowerUser.includes('sintomas');
 
   if (isMedicalIntent && !window.location.pathname.endsWith('medical.html')) {
-    const redirectMsg = 'Entendido. Para darte la mejor atención y orientación médica, te redirijo a nuestro Asistente Médico.';
-    chatHistory.push({ role: 'model', content: redirectMsg });
-    setTimeout(() => {
-      window.location.href = `./medical.html?prompt=${encodeURIComponent(userPrompt)}`;
-    }, 1200);
-    return redirectMsg;
+    window.location.href = './medical.html';
+    return '';
   }
 
   const isMusicIntent =
@@ -882,10 +875,8 @@ async function executeDynamicClientAnswer(prompt, attachment) {
     lower.includes('enfermedad') || lower.includes('enfermo') || lower.includes('malestar');
 
   if (isMedicalIntent && !window.location.pathname.endsWith('medical.html')) {
-    setTimeout(() => {
-      window.location.href = `./medical.html?prompt=${encodeURIComponent(prompt)}`;
-    }, 1200);
-    return 'Entendido. Para darte la mejor orientación médica sobre tu consulta, te estoy llevando con nuestro Asistente Médico.';
+    window.location.href = './medical.html';
+    return '';
   }
 
   // Compartir Ubicación
