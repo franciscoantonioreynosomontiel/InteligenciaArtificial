@@ -3,15 +3,14 @@ import { Scene3D } from './three-scene.js';
 
 const STORAGE_KEY_MUSIC = 'ia_agent_music_library';
 
-// Default starter tracks uploaded to Cloudinary account dp776nphp
+// Default starter tracks uploaded to media store
 const DEFAULT_MUSIC_LIBRARY = [
   {
     id: 'cld-p77nsjwwltyve2oryjv3',
-    title: 'Canción Cloudinary 1',
-    artist: 'Cloudinary',
-    album: 'Mi Música Cloudinary',
+    title: 'Canción 1',
+    artist: 'Artista',
+    album: 'Mi Música',
     url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
-    cover: './assets/img/logopwa.png',
     duration: '06:12'
   }
 ];
@@ -36,11 +35,12 @@ function getStoredMusicLibrary() {
     }
     const items = JSON.parse(raw);
     if (Array.isArray(items) && items.length > 0) {
-      // Enforce strictly Cloudinary dp776nphp assets
       const cldTracks = items
         .filter(t => t.url && t.url.includes('res.cloudinary.com/dp776nphp/'))
         .map(t => {
-          if (t.title.includes('SoundHelix')) t.title = 'Canción Cloudinary 1';
+          if (t.title.includes('SoundHelix') || t.title.includes('Cloudinary')) t.title = 'Canción 1';
+          if (t.artist === 'Cloudinary') t.artist = 'Artista';
+          if (t.album && t.album.includes('Cloudinary')) t.album = 'Mi Música';
           return t;
         });
       const unique = deduplicateTracks(cldTracks);
@@ -81,7 +81,7 @@ let editingArtistName = '';
 
 function parseFilenameToMeta(filename) {
   let cleanName = filename.replace(/\.[^/.]+$/, '').trim();
-  let artist = 'Cloudinary';
+  let artist = 'Artista';
   let title = cleanName;
 
   if (cleanName.includes(' - ')) {
@@ -100,8 +100,8 @@ function parseFilenameToMeta(filename) {
   title = title.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
   artist = artist.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  title = title ? title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción Cloudinary';
-  artist = artist ? artist.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Cloudinary';
+  title = title ? title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción';
+  artist = artist ? artist.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Artista';
 
   return { title, artist };
 }
@@ -178,7 +178,8 @@ function initMusicMicPermissions() {
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
-        micAudioStream = stream;
+        // Immediately stop mic stream tracks to release microphone hardware and avoid locking audio output into call mode.
+        stream.getTracks().forEach(track => track.stop());
       })
       .catch((e) => console.warn('Mic permission error in music page:', e));
   }
@@ -221,14 +222,18 @@ async function fetchCloudinaryTracksFromEdge() {
       if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
         let updatedCount = 0;
         data.tracks.forEach(remoteTrack => {
+          if (remoteTrack.artist === 'Cloudinary') remoteTrack.artist = 'Artista';
+          if (remoteTrack.album && remoteTrack.album.includes('Cloudinary')) remoteTrack.album = 'Mi Música';
+          if (remoteTrack.title && remoteTrack.title.includes('Cloudinary')) remoteTrack.title = 'Canción';
+
           const existingIdx = MUSIC_LIBRARY.findIndex(t => t.url === remoteTrack.url || t.id === remoteTrack.id);
           if (existingIdx === -1) {
             MUSIC_LIBRARY.push(remoteTrack);
             updatedCount++;
           } else {
             const currTitle = MUSIC_LIBRARY[existingIdx].title;
-            const isHashOrGeneric = currTitle.startsWith('Canción Cloudinary') || /^[a-zA-Z0-9]{8,32}$/.test(currTitle);
-            if (isHashOrGeneric || (remoteTrack.title && !remoteTrack.title.startsWith('Canción Cloudinary') && !/^[a-zA-Z0-9]{8,32}$/.test(remoteTrack.title))) {
+            const isHashOrGeneric = currTitle.startsWith('Canción') || /^[a-zA-Z0-9]{8,32}$/.test(currTitle);
+            if (isHashOrGeneric || (remoteTrack.title && !remoteTrack.title.startsWith('Canción') && !/^[a-zA-Z0-9]{8,32}$/.test(remoteTrack.title))) {
               if (MUSIC_LIBRARY[existingIdx].title !== remoteTrack.title || MUSIC_LIBRARY[existingIdx].artist !== remoteTrack.artist) {
                 MUSIC_LIBRARY[existingIdx].title = remoteTrack.title;
                 MUSIC_LIBRARY[existingIdx].artist = remoteTrack.artist;
@@ -245,13 +250,13 @@ async function fetchCloudinaryTracksFromEdge() {
             const titleElem = document.getElementById('track-title');
             const artistElem = document.getElementById('track-artist');
             if (titleElem) titleElem.innerText = MUSIC_LIBRARY[currentTrackIndex].title;
-            if (artistElem) artistElem.innerText = `${MUSIC_LIBRARY[currentTrackIndex].artist} • ${MUSIC_LIBRARY[currentTrackIndex].album}`;
+            if (artistElem) artistElem.innerText = `${MUSIC_LIBRARY[currentTrackIndex].artist}${MUSIC_LIBRARY[currentTrackIndex].duration ? ' • ' + MUSIC_LIBRARY[currentTrackIndex].duration : ''}`;
           }
         }
       }
     }
   } catch (e) {
-    console.warn('No se pudieron obtener temas remotos de Cloudinary:', e);
+    console.warn('No se pudieron obtener temas remotos:', e);
   }
 }
 
@@ -499,7 +504,7 @@ function setupAudioPlayerEvents() {
   });
 
   audioPlayer.addEventListener('error', () => {
-    showToast('No se pudo cargar la canción de Cloudinary.');
+    showToast('No se pudo cargar la canción.');
     setIsPlaying(false);
   });
 }
@@ -517,11 +522,13 @@ function loadTrack(index, autoPlay = true) {
 
   const titleElem = document.getElementById('track-title');
   const artistElem = document.getElementById('track-artist');
-  const coverElem = document.getElementById('track-cover');
 
   if (titleElem) titleElem.innerText = track.title;
-  if (artistElem) artistElem.innerText = `${track.artist} • ${track.album}`;
-  if (coverElem) coverElem.src = track.cover || './assets/img/logopwa.png';
+  if (artistElem) {
+    const artistStr = track.artist || 'Artista';
+    const durationStr = track.duration ? ` • ${track.duration}` : '';
+    artistElem.innerText = `${artistStr}${durationStr}`;
+  }
 
   renderLibraryList();
 
@@ -731,7 +738,7 @@ function setupUIEventListeners() {
       if (!file) return;
 
       if (uploadStatus) {
-        uploadStatus.innerText = 'Subiendo a Cloudinary...';
+        uploadStatus.innerText = 'Subiendo archivo...';
         uploadStatus.style.display = 'block';
       }
 
@@ -756,7 +763,6 @@ function setupUIEventListeners() {
             artist: parsed.artist,
             album: 'Mi Música',
             url: data.secure_url,
-            cover: './assets/img/logopwa.png',
             duration: formatTime(data.duration || 0)
           };
 
@@ -819,7 +825,7 @@ function setupModalEventListeners() {
         }
 
         MUSIC_LIBRARY[editingTrackIndex].title = newTitle;
-        MUSIC_LIBRARY[editingTrackIndex].artist = newArtist || 'Cloudinary';
+        MUSIC_LIBRARY[editingTrackIndex].artist = newArtist || 'Artista';
         MUSIC_LIBRARY[editingTrackIndex].album = newAlbum || 'Mi Música';
 
         saveStoredMusicLibrary(MUSIC_LIBRARY);
@@ -1108,12 +1114,13 @@ function renderLibraryList() {
 
     albumKeys.forEach(albumName => {
       const albumTracks = albums[albumName];
-      const coverArt = albumTracks[0]?.cover || './assets/img/logopwa.png';
 
       const card = document.createElement('div');
       card.className = 'album-card';
       card.innerHTML = `
-        <img src="${coverArt}" class="album-card-img" alt="${albumName}">
+        <div class="album-card-icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
         <div class="album-card-title">${albumName}</div>
         <div class="album-card-count">${albumTracks.length} canción${albumTracks.length === 1 ? '' : 'es'}</div>
       `;
@@ -1205,7 +1212,7 @@ function renderLibraryList() {
   } else {
     // Default 'songs' view
     if (filteredTracks.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #000000; -webkit-text-fill-color: #000000; font-size: 0.85rem; font-weight: 600;">No hay canciones encontradas en tu biblioteca de Cloudinary.</div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 20px; color: #000000; -webkit-text-fill-color: #000000; font-size: 0.85rem; font-weight: 600;">No hay canciones encontradas en tu biblioteca.</div>`;
       return;
     }
 
@@ -1221,16 +1228,18 @@ function createMusicItemElement(track, container, customIndex = null, sourceQueu
   const isCurrent = currentTrack && (currentTrack.id === track.id || currentTrack.url === track.url);
 
   const displayTitle = track.title || 'Canción Sin Nombre';
-  const displayArtist = track.artist || 'Cloudinary';
-  const displayAlbum = track.album || 'Mi Música';
+  const displayArtist = track.artist || 'Artista';
+  const displayDuration = track.duration ? ` • ${track.duration}` : '';
 
   const itemDiv = document.createElement('div');
   itemDiv.className = `music-item ${isCurrent ? 'active' : ''}`;
   itemDiv.innerHTML = `
-    <img src="${track.cover || './assets/img/logopwa.png'}" class="music-item-img" alt="Cover">
+    <div class="music-item-icon-box">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+    </div>
     <div class="music-item-info">
       <div class="music-item-title">${displayTitle}</div>
-      <div class="music-item-sub">${displayArtist} • ${displayAlbum}</div>
+      <div class="music-item-sub">${displayArtist}${displayDuration}</div>
     </div>
     <div class="item-actions">
       <button class="btn-item-action move-up" title="Mover arriba" aria-label="Mover arriba">
@@ -1260,7 +1269,7 @@ function createMusicItemElement(track, container, customIndex = null, sourceQueu
   };
 
   itemDiv.querySelector('.music-item-info').addEventListener('click', playThisTrack);
-  itemDiv.querySelector('.music-item-img').addEventListener('click', playThisTrack);
+  itemDiv.querySelector('.music-item-icon-box').addEventListener('click', playThisTrack);
 
   itemDiv.querySelector('.move-up').addEventListener('click', (e) => {
     e.stopPropagation();
