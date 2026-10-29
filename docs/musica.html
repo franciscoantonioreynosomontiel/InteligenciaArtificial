@@ -164,6 +164,18 @@
       border-color: #c084fc;
     }
 
+    .music-item-icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: #ede9fe;
+      color: #6d28d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
     .music-item-img {
       width: 48px;
       height: 48px;
@@ -264,11 +276,15 @@
       transform: translateY(-2px);
     }
 
-    .album-card-img {
+    .album-card-icon-box {
       width: 100%;
       aspect-ratio: 1;
-      border-radius: 10px;
-      object-fit: cover;
+      border-radius: 12px;
+      background: #ede9fe;
+      color: #6d28d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-bottom: 8px;
       box-shadow: 0 4px 10px rgba(139, 92, 246, 0.15);
     }
@@ -522,7 +538,11 @@
       width: 56px;
       height: 56px;
       border-radius: 12px;
-      object-fit: cover;
+      background: #ede9fe;
+      color: #6d28d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
       flex-shrink: 0;
     }
@@ -744,9 +764,9 @@
         <input type="text" id="music-search" class="search-input" placeholder="Buscar canción, álbum o cantante...">
       </div>
 
-      <!-- Cloudinary Upload Controls -->
+      <!-- Music Upload Controls -->
       <input type="file" id="music-upload-input" accept="audio/*" style="display: none;">
-      <button id="btn-upload-music" style="padding: 10px 16px; border-radius: 12px; background: #8b5cf6; color: #ffffff; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; text-align: center; margin-bottom: 12px; width: 100%; box-sizing: border-box;">Subir Canción a Cloudinary</button>
+      <button id="btn-upload-music" style="padding: 10px 16px; border-radius: 12px; background: #8b5cf6; color: #ffffff; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; text-align: center; margin-bottom: 12px; width: 100%; box-sizing: border-box;">Subir</button>
       <div id="upload-status" style="font-size: 0.8rem; color: #6d28d9; text-align: center; margin-bottom: 8px; display: none;"></div>
 
       <div id="music-library-list" class="music-list">
@@ -760,7 +780,9 @@
 
       <!-- Current Track Info & Cover -->
       <div class="track-card">
-        <img id="track-cover" class="track-cover-art" src="./assets/img/logopwa.png" alt="Carátula">
+        <div id="track-cover" class="track-cover-art">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
         <div class="track-meta">
           <div id="track-title" class="track-title">Selecciona una canción</div>
           <div id="track-artist" class="track-artist">Biblioteca Toto</div>

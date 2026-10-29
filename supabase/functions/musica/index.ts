@@ -42,15 +42,15 @@ function extractTrackInfo(r: any) {
     '';
 
   if (!rawName || rawName.trim().length === 0) {
-    rawName = (r.public_id || '').split('/').pop() || 'Canción Cloudinary';
+    rawName = (r.public_id || '').split('/').pop() || 'Canción';
   }
 
   rawName = rawName.replace(/\.[^/.]+$/, '');
 
-  let artist = r.context?.custom?.artist || 'Cloudinary';
+  let artist = r.context?.custom?.artist || 'Artista';
   let title = rawName;
 
-  if (artist === 'Cloudinary') {
+  if (artist === 'Artista' || artist === 'Cloudinary') {
     if (rawName.includes(' - ')) {
       const parts = rawName.split(' - ');
       artist = parts[0].trim();
@@ -67,8 +67,8 @@ function extractTrackInfo(r: any) {
   title = title.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
   artist = artist.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  title = title ? title.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción Cloudinary';
-  artist = artist ? artist.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Cloudinary';
+  title = title ? title.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Canción';
+  artist = artist ? artist.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Artista';
 
   return { title, artist };
 }
@@ -160,9 +160,8 @@ serve(async (req: Request) => {
                   id: r.public_id || ('cld-' + Math.random()),
                   title: title,
                   artist: artist,
-                  album: 'Mi Música Cloudinary',
+                  album: 'Mi Música',
                   url: r.secure_url || r.url,
-                  cover: './assets/img/logopwa.png',
                   duration: '06:12'
                 });
               });
@@ -177,11 +176,10 @@ serve(async (req: Request) => {
       if (tracks.length === 0) {
         tracks.push({
           id: 'cld-p77nsjwwltyve2oryjv3',
-          title: 'Canción Cloudinary 1',
-          artist: 'Cloudinary',
-          album: 'Mi Música Cloudinary',
+          title: 'Canción 1',
+          artist: 'Artista',
+          album: 'Mi Música',
           url: 'https://res.cloudinary.com/dp776nphp/video/upload/v1790847031/p77nsjwwltyve2oryjv3.mp3',
-          cover: './assets/img/logopwa.png',
           duration: '06:12'
         });
       }
@@ -334,7 +332,7 @@ serve(async (req: Request) => {
     if (!matchedAction && (lowerPrompt.includes('cancion') || lowerPrompt.includes('album') || lowerPrompt.includes('cantante') || lowerPrompt.includes('ponme') || lowerPrompt.includes('reproduce'))) {
       const requestedTerm = userPrompt.replace(/ponme|reproduce|la cancion|el album|del cantante|cancion|album/gi, '').trim();
       matchedAction = 'not_found';
-      aiMessage = `No tengo la canción o elemento "${requestedTerm || userPrompt}" en tu biblioteca de Cloudinary.`;
+      aiMessage = `No tengo la canción o elemento "${requestedTerm || userPrompt}" en tu biblioteca de música.`;
     }
 
     // Ask Gemini if Gemini API key is present and we want an AI response enhancement
